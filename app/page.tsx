@@ -472,7 +472,7 @@ export default function HomePage() {
                   disabled={!selectedTime}
                   className="disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Reservation Details
+                  Details
                 </TabsTrigger>
               </TabsList>
               
