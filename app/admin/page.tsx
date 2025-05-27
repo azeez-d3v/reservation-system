@@ -1,0 +1,75 @@
+"use client"
+
+import { useState, useEffect } from "react"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { AdminRequests } from "@/components/admin/requests"
+import { AdminReservations } from "@/components/admin/reservations"
+import { AdminSettings } from "@/components/admin/settings"
+import { Calendar, Clock, Settings } from "lucide-react"
+import { useAuth } from "@/hooks/use-auth"
+import { redirect } from "next/navigation"
+
+export default function AdminPage() {
+  const { user, isLoading } = useAuth()
+  const [activeTab, setActiveTab] = useState("requests")
+
+  useEffect(() => {
+    if (!isLoading && (!user || user.role !== "admin")) {
+      redirect("/dashboard")
+    }
+  }, [user, isLoading])
+
+  if (isLoading) {
+    return <div className="container py-10">Loading...</div>
+  }
+
+  if (!user || user.role !== "admin") {
+    return null // This will redirect in the useEffect
+  }
+
+  return (
+    <div className="container mx-auto px-4 py-8">
+      <Card>
+        <CardHeader>
+          <CardTitle>Reservation Management</CardTitle>
+          <CardDescription>Manage reservation requests and approved reservations.</CardDescription>
+        </CardHeader>
+        <CardContent className="p-0">
+          <Tabs defaultValue="requests" value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <div className="border-b px-6">
+              <TabsList className="mb-0">
+                <TabsTrigger value="requests">
+                  <Clock className="h-4 w-4 mr-2" />
+                  <span>Pending Requests</span>
+                </TabsTrigger>
+                <TabsTrigger value="reservations">
+                  <Calendar className="h-4 w-4 mr-2" />
+                  <span>Approved Reservations</span>
+                </TabsTrigger>
+                <TabsTrigger value="settings">
+                  <Settings className="h-4 w-4 mr-2" />
+                  <span>Settings</span>
+                </TabsTrigger>
+              </TabsList>
+            </div>
+
+            <div className="p-6">
+              <TabsContent value="requests" className="m-0">
+                <AdminRequests />
+              </TabsContent>
+
+              <TabsContent value="reservations" className="m-0">
+                <AdminReservations />
+              </TabsContent>
+
+              <TabsContent value="settings" className="m-0">
+                <AdminSettings />
+              </TabsContent>
+            </div>
+          </Tabs>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
