@@ -32,6 +32,24 @@ export function ReservationDetailsForm({ selectedDate, startTime, endTime, onBac
   const [purpose, setPurpose] = useState("")
   const [attendees, setAttendees] = useState("1")
   const [notes, setNotes] = useState("")
+  
+  // Calculate the actual end time if it's not provided
+  const displayEndTime = endTime || (() => {
+    try {
+      const [hours, minutes] = startTime.split(':').map(Number);
+      // Default to 1 hour duration if no end time is provided
+      const startTimeObj = new Date();
+      startTimeObj.setHours(hours, minutes, 0);
+      
+      const endTimeObj = new Date(startTimeObj.getTime() + 60 * 60000); // 60 minutes = 1 hour
+      const endTimeHours = endTimeObj.getHours().toString().padStart(2, '0');
+      const endTimeMinutes = endTimeObj.getMinutes().toString().padStart(2, '0');
+      return `${endTimeHours}:${endTimeMinutes}`;
+    } catch (e) {
+      console.error("Error calculating end time:", e);
+      return "—";
+    }
+  })()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

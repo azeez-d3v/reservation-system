@@ -34,10 +34,12 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Progress } from "@/components/ui/progress"
+import { useToast } from "@/components/ui/use-toast"
 
 export default function HomePage() {
   const router = useRouter()
   const { user } = useAuth()
+  const { toast } = useToast()
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [selectedTime, setSelectedTime] = useState<string | null>(null)
@@ -293,16 +295,42 @@ export default function HomePage() {
   }
 
   // Handle continue to reservation
-  const handleContinueToReservation = () => {
+  const handleContinueToReservation = async () => {
     if (!selectedDate || !selectedTime) return
 
-    const dateParam = format(selectedDate, "yyyy-MM-dd")
+    try {
+      // Store reservation data in backend session
+      const response = await fetch('/api/reservation-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          date: format(selectedDate, "yyyy-MM-dd"),
+          time: selectedTime,
+          duration: selectedDuration
+        })
+      })
 
-    if (user) {
-      router.push(`/request?date=${dateParam}&time=${selectedTime}&duration=${selectedDuration}`)
-    } else {
-      const deepLink = `/login?redirect=/request&date=${dateParam}&time=${selectedTime}&duration=${selectedDuration}`
-      router.push(deepLink)
+      if (!response.ok) {
+        throw new Error('Failed to store reservation session')
+      }
+
+      const { sessionId } = await response.json()
+
+      if (user) {
+        router.push(`/request?sessionId=${sessionId}`)
+      } else {
+        const deepLink = `/login?redirect=/request&sessionId=${sessionId}`
+        router.push(deepLink)
+      }
+    } catch (error) {
+      console.error('Error storing reservation data:', error)
+      toast({
+        title: "Error",
+        description: "Failed to proceed with reservation. Please try again.",
+        variant: "destructive",
+      })
     }
   }
 

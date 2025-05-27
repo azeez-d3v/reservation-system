@@ -43,6 +43,12 @@ export const authOptions: NextAuthOptions = {
       return session
     },    async signIn({ user, account, profile }) {
       if (account?.provider === "google") {
+        // Check if email is verified and from allowed domain
+        const googleProfile = profile as any
+        if (!googleProfile?.email_verified || !googleProfile?.email?.endsWith("@leadersics.edu.ph")) {
+          return false
+        }
+        
         try {
           // Ensure the user document exists in our custom collection
           const userDoc = await adminDb.collection("users").doc(user.email!).get()

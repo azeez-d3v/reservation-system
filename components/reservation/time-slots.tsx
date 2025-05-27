@@ -30,6 +30,7 @@ interface ReservationTimeSlotsProps {
   onTimeSelected: (startTime: string, endTime: string) => void
   onBack: () => void
   initialStartTime?: string
+  initialDuration?: number
 }
 
 export function ReservationTimeSlots({
@@ -37,6 +38,7 @@ export function ReservationTimeSlots({
   onTimeSelected,
   onBack,
   initialStartTime,
+  initialDuration,
 }: ReservationTimeSlotsProps) {
   const { toast } = useToast()
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([])
@@ -48,7 +50,7 @@ export function ReservationTimeSlots({
   const [use12HourFormat, setUse12HourFormat] = useState(true)
   const [systemSettings, setSystemSettings] = useState<any>(null)
   const [durationOptions, setDurationOptions] = useState<number[]>([30, 60, 90, 120, 180, 240])
-  const [selectedDuration, setSelectedDuration] = useState<number>(60)
+  const [selectedDuration, setSelectedDuration] = useState<number>(initialDuration || 60)
   const [hasOverlap, setHasOverlap] = useState(false)
   const [maxPossibleDuration, setMaxPossibleDuration] = useState<number>(240)
   const [operationalHours, setOperationalHours] = useState({ start: "08:00", end: "17:00" })
@@ -112,7 +114,10 @@ export function ReservationTimeSlots({
           options.push(i)
         }
         setDurationOptions(options)
-        setSelectedDuration(minDuration)
+        
+        // Set the initial duration - prioritize the passed initial duration
+        const initialSelectedDuration = initialDuration || minDuration
+        setSelectedDuration(initialSelectedDuration)
 
         // If we have an initial start time, select it
         if (initialStartTime) {
@@ -131,7 +136,14 @@ export function ReservationTimeSlots({
     }
 
     fetchData()
-  }, [selectedDate, toast, initialStartTime])
+  }, [selectedDate, toast, initialStartTime, initialDuration])
+
+  // Handle initial duration prop changes
+  useEffect(() => {
+    if (initialDuration) {
+      setSelectedDuration(initialDuration)
+    }
+  }, [initialDuration])
 
   // Update available end times when start time changes
   useEffect(() => {

@@ -27,6 +27,7 @@ export default function RequestPage() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined)
   const [selectedStartTime, setSelectedStartTime] = useState<string>("")
   const [selectedEndTime, setSelectedEndTime] = useState<string>("")
+  const [selectedDuration, setSelectedDuration] = useState<number | undefined>(undefined)
 
   // Use refs to track if we've already processed URL parameters
   const initializedRef = useRef(false)
@@ -44,25 +45,165 @@ export default function RequestPage() {
     if (!initializedRef.current && !authLoading) {
       initializedRef.current = true
 
-      // Get date and time from URL parameters
-      const dateParam = searchParams.get("date")
-      const timeParam = searchParams.get("time")
+      const sessionId = searchParams.get("sessionId")
 
-      if (dateParam) {
-        try {
-          const parsedDate = new Date(dateParam)
-          if (!isNaN(parsedDate.getTime())) {
-            setSelectedDate(parsedDate)
-            // If we have a date from URL, move to time selection tab
-            if (timeParam) {
-              setSelectedStartTime(timeParam)
-              setActiveTab("reservation-details")
-            } else {
-              setActiveTab("time-selection")
+      if (sessionId) {
+        // Fetch reservation data from backend session
+        const fetchSessionData = async () => {
+          try {
+            const response = await fetch(`/api/reservation-session?sessionId=${sessionId}`)
+            
+            if (!response.ok) {
+              throw new Error('Session not found')
+            }
+
+            const sessionData = await response.json()
+            
+            if (sessionData.date) {
+              const parsedDate = new Date(sessionData.date)
+              if (!isNaN(parsedDate.getTime())) {
+                setSelectedDate(parsedDate)
+                if (sessionData.time) {
+                  setSelectedStartTime(sessionData.time)
+                  
+                  // Calculate end time based on start time and duration
+                  if (sessionData.duration) {
+                    const [hours, minutes] = sessionData.time.split(':').map(Number);
+                    const startTimeObj = new Date();
+                    startTimeObj.setHours(hours, minutes, 0);
+                    
+                    const endTimeObj = new Date(startTimeObj.getTime() + sessionData.duration * 60000);
+                    const endTimeHours = endTimeObj.getHours().toString().padStart(2, '0');
+                    const endTimeMinutes = endTimeObj.getMinutes().toString().padStart(2, '0');
+                    const calculatedEndTime = `${endTimeHours}:${endTimeMinutes}`;
+                    
+                    setSelectedEndTime(calculatedEndTime);
+                  }
+                  
+                  setActiveTab("reservation-details")
+                } else {
+                  setActiveTab("time-selection")
+                }
+              }
+            }
+
+            if (sessionData.duration) {
+              setSelectedDuration(sessionData.duration)
+            }
+          } catch (error) {
+            console.error('Error fetching session data:', error)
+            // Fallback to URL parameters if session fetch fails
+            const dateParam = searchParams.get("date")
+            const timeParam = searchParams.get("time")
+            const durationParam = searchParams.get("duration")
+
+            if (dateParam) {
+              try {
+                const parsedDate = new Date(dateParam)
+                if (!isNaN(parsedDate.getTime())) {
+                  setSelectedDate(parsedDate)
+                  if (timeParam) {
+                    setSelectedStartTime(timeParam)
+                    
+                    // Calculate end time based on start time and duration
+                    if (durationParam) {
+                      try {
+                        const parsedDuration = parseInt(durationParam)
+                        if (!isNaN(parsedDuration) && parsedDuration > 0) {
+                          const [hours, minutes] = timeParam.split(':').map(Number);
+                          const startTimeObj = new Date();
+                          startTimeObj.setHours(hours, minutes, 0);
+                          
+                          const endTimeObj = new Date(startTimeObj.getTime() + parsedDuration * 60000);
+                          const endTimeHours = endTimeObj.getHours().toString().padStart(2, '0');
+                          const endTimeMinutes = endTimeObj.getMinutes().toString().padStart(2, '0');
+                          const calculatedEndTime = `${endTimeHours}:${endTimeMinutes}`;
+                          
+                          setSelectedEndTime(calculatedEndTime);
+                        }
+                      } catch (e) {
+                        console.error("Invalid duration parameter:", e)
+                      }
+                    }
+                    
+                    setActiveTab("reservation-details")
+                  } else {
+                    setActiveTab("time-selection")
+                  }
+                }
+              } catch (e) {
+                console.error("Invalid date parameter:", e)
+              }
+            }
+
+            if (durationParam) {
+              try {
+                const parsedDuration = parseInt(durationParam)
+                if (!isNaN(parsedDuration) && parsedDuration > 0) {
+                  setSelectedDuration(parsedDuration)
+                }
+              } catch (e) {
+                console.error("Invalid duration parameter:", e)
+              }
             }
           }
-        } catch (e) {
-          console.error("Invalid date parameter:", e)
+        }
+
+        fetchSessionData()
+      } else {
+        // Fallback to URL parameters if no sessionId
+        const dateParam = searchParams.get("date")
+        const timeParam = searchParams.get("time")
+        const durationParam = searchParams.get("duration")
+
+        if (dateParam) {
+          try {
+            const parsedDate = new Date(dateParam)
+            if (!isNaN(parsedDate.getTime())) {
+              setSelectedDate(parsedDate)
+              if (timeParam) {
+                setSelectedStartTime(timeParam)
+                
+                // Calculate end time based on start time and duration
+                if (durationParam) {
+                  try {
+                    const parsedDuration = parseInt(durationParam)
+                    if (!isNaN(parsedDuration) && parsedDuration > 0) {
+                      const [hours, minutes] = timeParam.split(':').map(Number);
+                      const startTimeObj = new Date();
+                      startTimeObj.setHours(hours, minutes, 0);
+                      
+                      const endTimeObj = new Date(startTimeObj.getTime() + parsedDuration * 60000);
+                      const endTimeHours = endTimeObj.getHours().toString().padStart(2, '0');
+                      const endTimeMinutes = endTimeObj.getMinutes().toString().padStart(2, '0');
+                      const calculatedEndTime = `${endTimeHours}:${endTimeMinutes}`;
+                      
+                      setSelectedEndTime(calculatedEndTime);
+                    }
+                  } catch (e) {
+                    console.error("Invalid duration parameter:", e)
+                  }
+                }
+                
+                setActiveTab("reservation-details")
+              } else {
+                setActiveTab("time-selection")
+              }
+            }
+          } catch (e) {
+            console.error("Invalid date parameter:", e)
+          }
+        }
+
+        if (durationParam) {
+          try {
+            const parsedDuration = parseInt(durationParam)
+            if (!isNaN(parsedDuration) && parsedDuration > 0) {
+              setSelectedDuration(parsedDuration)
+            }
+          } catch (e) {
+            console.error("Invalid duration parameter:", e)
+          }
         }
       }
     }
@@ -137,6 +278,7 @@ export default function RequestPage() {
               onTimeSelected={handleTimeSelected}
               onBack={() => setActiveTab("date-selection")}
               initialStartTime={selectedStartTime}
+              initialDuration={selectedDuration}
             />
           ) : (
             <div className="flex flex-col items-center justify-center py-12 text-center border rounded-md bg-muted/10 p-8 shadow-sm">
