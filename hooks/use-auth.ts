@@ -3,8 +3,7 @@
 import { useSession, signIn, signOut } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/components/ui/use-toast"
-import { db } from "@/lib/firebase"
-import { collection, getDocs, doc, updateDoc, query, where } from "firebase/firestore"
+import { getUsers, updateUserStatus as updateUserStatusFirestore, updateUser as updateUserFirestore } from "@/lib/firestore"
 import type { User } from "@/lib/types"
 
 export function useAuth() {
@@ -43,27 +42,22 @@ export function useAuth() {
       })
     }
   }
-
   const getAllUsers = async (): Promise<User[]> => {
     try {
-      const usersSnapshot = await getDocs(collection(db, "users"))
-      return usersSnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as User[]
+      return await getUsers()
     } catch (error) {
       console.error("Error fetching users:", error)
+      toast({
+        title: "Error",
+        description: "Failed to fetch users.",
+        variant: "destructive",
+      })
       return []
     }
   }
-
-  const updateUserStatus = async (userEmail: string, status: "active" | "inactive") => {
+  const updateUserStatus = async (userId: string, status: "active" | "inactive") => {
     try {
-      const userDoc = doc(db, "users", userEmail)
-      await updateDoc(userDoc, {
-        status,
-        updatedAt: new Date(),
-      })
+      await updateUserStatusFirestore(userId, status)
 
       toast({
         title: "User updated",
@@ -71,7 +65,7 @@ export function useAuth() {
       })
 
       // If the current user is being deactivated, log them out
-      if (user?.email === userEmail && status === "inactive") {
+      if (user?.email === userId && status === "inactive") {
         await logout()
       }
     } catch (error) {
@@ -83,14 +77,9 @@ export function useAuth() {
       })
     }
   }
-
-  const updateUser = async (userData: Partial<User> & { email: string }) => {
+  const updateUser = async (userData: Partial<User> & { id: string }) => {
     try {
-      const userDoc = doc(db, "users", userData.email)
-      await updateDoc(userDoc, {
-        ...userData,
-        updatedAt: new Date(),
-      })
+      await updateUserFirestore(userData.id, userData)
 
       toast({
         title: "User updated",

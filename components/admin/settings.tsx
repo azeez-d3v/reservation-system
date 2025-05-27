@@ -11,12 +11,12 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
 import {
-  getSystemSettings,
-  updateSystemSettings,
-  getTimeSlotSettings,
-  updateTimeSlotSettings,
-  getEmailSettings,
-  updateEmailSettings,
+  getSettings,
+  updateSettings,
+  getTimeSlots,
+  updateTimeSlots,
+  getEmailConfiguration,
+  updateEmailConfiguration,
 } from "@/lib/actions"
 import type { TimeSlotSettings, SystemSettings, EmailSettings } from "@/lib/types"
 import { Separator } from "@/components/ui/separator"
@@ -34,19 +34,192 @@ export function AdminSettings() {
   const [timeSlotSettings, setTimeSlotSettings] = useState<TimeSlotSettings | null>(null)
   const [emailSettings, setEmailSettings] = useState<EmailSettings | null>(null)
 
+  // Original states for change detection
+  const [originalSystemSettings, setOriginalSystemSettings] = useState<SystemSettings | null>(null)
+  const [originalTimeSlotSettings, setOriginalTimeSlotSettings] = useState<TimeSlotSettings | null>(null)
+  const [originalEmailSettings, setOriginalEmailSettings] = useState<EmailSettings | null>(null)
+
+  // Local storage keys
+  const STORAGE_KEYS = {
+    system: 'admin-settings-system-draft',
+    timeSlots: 'admin-settings-timeslots-draft',
+    email: 'admin-settings-email-draft',
+    cache: 'admin-settings-cache',
+    cacheTimestamp: 'admin-settings-cache-timestamp'
+  }
+
+  // Cache duration (5 minutes)
+  const CACHE_DURATION = 5 * 60 * 1000
+
+  // Helper functions for change detection
+  const hasSystemChanges = () => {
+    if (!systemSettings || !originalSystemSettings) return false
+    return JSON.stringify(systemSettings) !== JSON.stringify(originalSystemSettings)
+  }
+
+  const hasTimeSlotChanges = () => {
+    if (!timeSlotSettings || !originalTimeSlotSettings) return false
+    return JSON.stringify(timeSlotSettings) !== JSON.stringify(originalTimeSlotSettings)
+  }
+
+  const hasEmailChanges = () => {
+    if (!emailSettings || !originalEmailSettings) return false
+    return JSON.stringify(emailSettings) !== JSON.stringify(originalEmailSettings)
+  }
+
+  // Local storage helpers
+  const saveToLocalStorage = (key: string, data: any) => {
+    try {
+      localStorage.setItem(key, JSON.stringify(data))
+    } catch (error) {
+      console.warn('Failed to save to localStorage:', error)
+    }
+  }
+
+  const loadFromLocalStorage = (key: string) => {
+    try {
+      const item = localStorage.getItem(key)
+      return item ? JSON.parse(item) : null
+    } catch (error) {
+      console.warn('Failed to load from localStorage:', error)
+      return null
+    }
+  }
+
+  const clearLocalStorage = () => {
+    Object.values(STORAGE_KEYS).forEach(key => {
+      localStorage.removeItem(key)
+    })
+  }
+
+  // Cache helpers
+  const getCachedSettings = () => {
+    const cached = loadFromLocalStorage(STORAGE_KEYS.cache)
+    const timestamp = loadFromLocalStorage(STORAGE_KEYS.cacheTimestamp)
+    
+    if (cached && timestamp && (Date.now() - timestamp < CACHE_DURATION)) {
+      return cached
+    }
+    
+    return null
+  }
+
+  const setCachedSettings = (settings: any) => {
+    saveToLocalStorage(STORAGE_KEYS.cache, settings)
+    saveToLocalStorage(STORAGE_KEYS.cacheTimestamp, Date.now())
+  }
+
   useEffect(() => {
     const fetchSettings = async () => {
       setIsLoading(true)
       try {
+        // Check cache first
+        const cachedSettings = getCachedSettings()
+        if (cachedSettings) {
+          const { system, timeSlots, email } = cachedSettings
+          
+          setSystemSettings(system)
+          setOriginalSystemSettings(system)
+          
+          const processedTimeSlots = {
+            ...timeSlots,
+            blackoutDates: timeSlots.blackoutDates.map((bd: any) => ({
+              ...bd,
+              date: typeof bd.date === 'string' ? new Date(bd.date) : bd.date
+            }))
+          }
+          setTimeSlotSettings(processedTimeSlots)
+          setOriginalTimeSlotSettings(processedTimeSlots)
+          
+          setEmailSettings(email)
+          setOriginalEmailSettings(email)
+
+          // Check for local drafts
+          const systemDraft = loadFromLocalStorage(STORAGE_KEYS.system)
+          const timeSlotsDraft = loadFromLocalStorage(STORAGE_KEYS.timeSlots)
+          const emailDraft = loadFromLocalStorage(STORAGE_KEYS.email)
+
+          if (systemDraft) {
+            setSystemSettings(systemDraft)
+            toast({
+              title: "Draft Restored",
+              description: "Your unsaved system settings have been restored.",
+            })
+          }
+          if (timeSlotsDraft) {
+            setTimeSlotSettings(timeSlotsDraft)
+            toast({
+              title: "Draft Restored", 
+              description: "Your unsaved time slot settings have been restored.",
+            })
+          }
+          if (emailDraft) {
+            setEmailSettings(emailDraft)
+            toast({
+              title: "Draft Restored",
+              description: "Your unsaved email settings have been restored.",
+            })
+          }
+
+          setIsLoading(false)
+          return
+        }
+
+        // Fetch from server if no cache
         const [system, timeSlots, email] = await Promise.all([
-          getSystemSettings(),
-          getTimeSlotSettings(),
-          getEmailSettings(),
+          getSettings(),
+          getTimeSlots(),
+          getEmailConfiguration(),
         ])
 
+        // Store originals for change detection
+        setOriginalSystemSettings(system)
+        setOriginalTimeSlotSettings(timeSlots)
+        setOriginalEmailSettings(email)
+
         setSystemSettings(system)
-        setTimeSlotSettings(timeSlots)
+        
+        // Convert blackout date ISO strings back to Date objects
+        const processedTimeSlots = {
+          ...timeSlots,
+          blackoutDates: timeSlots.blackoutDates.map(bd => ({
+            ...bd,
+            date: typeof bd.date === 'string' ? new Date(bd.date) : bd.date
+          }))
+        }
+        setTimeSlotSettings(processedTimeSlots)
         setEmailSettings(email)
+
+        // Cache the settings
+        setCachedSettings({ system, timeSlots: processedTimeSlots, email })
+
+        // Check for local drafts
+        const systemDraft = loadFromLocalStorage(STORAGE_KEYS.system)
+        const timeSlotsDraft = loadFromLocalStorage(STORAGE_KEYS.timeSlots)
+        const emailDraft = loadFromLocalStorage(STORAGE_KEYS.email)
+
+        if (systemDraft) {
+          setSystemSettings(systemDraft)
+          toast({
+            title: "Draft Restored",
+            description: "Your unsaved system settings have been restored.",
+          })
+        }
+        if (timeSlotsDraft) {
+          setTimeSlotSettings(timeSlotsDraft)
+          toast({
+            title: "Draft Restored",
+            description: "Your unsaved time slot settings have been restored.",
+          })
+        }
+        if (emailDraft) {
+          setEmailSettings(emailDraft)
+          toast({
+            title: "Draft Restored",
+            description: "Your unsaved email settings have been restored.",
+          })
+        }
+
       } catch (error) {
         console.error("Failed to fetch settings:", error)
         toast({
@@ -62,12 +235,51 @@ export function AdminSettings() {
     fetchSettings()
   }, [toast])
 
+  // Auto-save drafts to localStorage when settings change
+  useEffect(() => {
+    if (systemSettings && hasSystemChanges()) {
+      saveToLocalStorage(STORAGE_KEYS.system, systemSettings)
+    }
+  }, [systemSettings])
+
+  useEffect(() => {
+    if (timeSlotSettings && hasTimeSlotChanges()) {
+      saveToLocalStorage(STORAGE_KEYS.timeSlots, timeSlotSettings)
+    }
+  }, [timeSlotSettings])
+
+  useEffect(() => {
+    if (emailSettings && hasEmailChanges()) {
+      saveToLocalStorage(STORAGE_KEYS.email, emailSettings)
+    }
+  }, [emailSettings])
+
   const handleSaveSystemSettings = async () => {
-    if (!systemSettings) return
+    if (!systemSettings || !hasSystemChanges()) {
+      toast({
+        title: "No Changes",
+        description: "No changes detected in system settings.",
+      })
+      return
+    }
 
     setIsSaving(true)
     try {
-      await updateSystemSettings(systemSettings)
+      await updateSettings(systemSettings)
+      
+      // Update original state and clear draft
+      setOriginalSystemSettings(systemSettings)
+      localStorage.removeItem(STORAGE_KEYS.system)
+      
+      // Update cache
+      if (timeSlotSettings && emailSettings) {
+        setCachedSettings({ 
+          system: systemSettings, 
+          timeSlots: timeSlotSettings, 
+          email: emailSettings 
+        })
+      }
+      
       toast({
         title: "Settings Saved",
         description: "System settings have been updated successfully.",
@@ -84,11 +296,31 @@ export function AdminSettings() {
   }
 
   const handleSaveTimeSlotSettings = async () => {
-    if (!timeSlotSettings) return
+    if (!timeSlotSettings || !hasTimeSlotChanges()) {
+      toast({
+        title: "No Changes",
+        description: "No changes detected in time slot settings.",
+      })
+      return
+    }
 
     setIsSaving(true)
     try {
-      await updateTimeSlotSettings(timeSlotSettings)
+      await updateTimeSlots(timeSlotSettings)
+      
+      // Update original state and clear draft
+      setOriginalTimeSlotSettings(timeSlotSettings)
+      localStorage.removeItem(STORAGE_KEYS.timeSlots)
+      
+      // Update cache
+      if (systemSettings && emailSettings) {
+        setCachedSettings({ 
+          system: systemSettings, 
+          timeSlots: timeSlotSettings, 
+          email: emailSettings 
+        })
+      }
+      
       toast({
         title: "Settings Saved",
         description: "Time slot settings have been updated successfully.",
@@ -105,11 +337,31 @@ export function AdminSettings() {
   }
 
   const handleSaveEmailSettings = async () => {
-    if (!emailSettings) return
+    if (!emailSettings || !hasEmailChanges()) {
+      toast({
+        title: "No Changes",
+        description: "No changes detected in email settings.",
+      })
+      return
+    }
 
     setIsSaving(true)
     try {
-      await updateEmailSettings(emailSettings)
+      await updateEmailConfiguration(emailSettings)
+      
+      // Update original state and clear draft
+      setOriginalEmailSettings(emailSettings)
+      localStorage.removeItem(STORAGE_KEYS.email)
+      
+      // Update cache
+      if (systemSettings && timeSlotSettings) {
+        setCachedSettings({ 
+          system: systemSettings, 
+          timeSlots: timeSlotSettings, 
+          email: emailSettings 
+        })
+      }
+      
       toast({
         title: "Settings Saved",
         description: "Email settings have been updated successfully.",
@@ -142,6 +394,11 @@ export function AdminSettings() {
         },
       ],
     })
+
+    toast({
+      title: "Blackout Date Added",
+      description: "A new blackout date has been added. Remember to save your changes.",
+    })
   }
 
   const removeBlackoutDate = (id: string) => {
@@ -150,6 +407,11 @@ export function AdminSettings() {
     setTimeSlotSettings({
       ...timeSlotSettings,
       blackoutDates: timeSlotSettings.blackoutDates.filter((date) => date.id !== id),
+    })
+
+    toast({
+      title: "Blackout Date Removed",
+      description: "The blackout date has been removed. Remember to save your changes.",
     })
   }
 
@@ -167,6 +429,11 @@ export function AdminSettings() {
         },
       ],
     })
+
+    toast({
+      title: "Recipient Added",
+      description: "A new notification recipient has been added. Remember to save your changes.",
+    })
   }
 
   const removeNotificationRecipient = (id: string) => {
@@ -175,6 +442,54 @@ export function AdminSettings() {
     setEmailSettings({
       ...emailSettings,
       notificationRecipients: emailSettings.notificationRecipients.filter((recipient) => recipient.id !== id),
+    })
+
+    toast({
+      title: "Recipient Removed",
+      description: "The notification recipient has been removed. Remember to save your changes.",
+    })
+  }
+
+  // Helper functions for reservation types
+  const addReservationType = () => {
+    if (!systemSettings) return
+
+    setSystemSettings({
+      ...systemSettings,
+      reservationTypes: [...systemSettings.reservationTypes, ""],
+    })
+
+    toast({
+      title: "Reservation Type Added",
+      description: "A new reservation type has been added. Remember to save your changes.",
+    })
+  }
+
+  const removeReservationType = (index: number) => {
+    if (!systemSettings) return
+
+    const newTypes = systemSettings.reservationTypes.filter((_, i) => i !== index)
+    setSystemSettings({ ...systemSettings, reservationTypes: newTypes })
+
+    toast({
+      title: "Reservation Type Removed",
+      description: "The reservation type has been removed. Remember to save your changes.",
+    })
+  }
+
+  const updateReservationType = (index: number, value: string) => {
+    if (!systemSettings) return
+
+    const newTypes = [...systemSettings.reservationTypes]
+    newTypes[index] = value
+    setSystemSettings({ ...systemSettings, reservationTypes: newTypes })
+  }
+
+  // Helper function to show toast when settings change
+  const showChangeNotification = (settingType: string) => {
+    toast({
+      title: "Settings Modified",
+      description: `${settingType} settings have been modified. Remember to save your changes.`,
     })
   }
 
@@ -305,8 +620,12 @@ export function AdminSettings() {
               </div>
             </CardContent>
             <CardFooter>
-              <Button onClick={handleSaveSystemSettings} disabled={isSaving}>
-                {isSaving ? "Saving..." : "Save Settings"}
+              <Button 
+                onClick={handleSaveSystemSettings} 
+                disabled={isSaving || !hasSystemChanges()}
+                className={hasSystemChanges() ? "bg-orange-600 hover:bg-orange-700" : ""}
+              >
+                {isSaving ? "Saving..." : hasSystemChanges() ? "Save Changes" : "No Changes"}
               </Button>
             </CardFooter>
           </Card>
@@ -321,19 +640,12 @@ export function AdminSettings() {
                 <div key={index} className="flex items-center space-x-2">
                   <Input
                     value={type}
-                    onChange={(e) => {
-                      const newTypes = [...systemSettings.reservationTypes]
-                      newTypes[index] = e.target.value
-                      setSystemSettings({ ...systemSettings, reservationTypes: newTypes })
-                    }}
+                    onChange={(e) => updateReservationType(index, e.target.value)}
                   />
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => {
-                      const newTypes = systemSettings.reservationTypes.filter((_, i) => i !== index)
-                      setSystemSettings({ ...systemSettings, reservationTypes: newTypes })
-                    }}
+                    onClick={() => removeReservationType(index)}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -342,20 +654,19 @@ export function AdminSettings() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => {
-                  setSystemSettings({
-                    ...systemSettings,
-                    reservationTypes: [...systemSettings.reservationTypes, ""],
-                  })
-                }}
+                onClick={addReservationType}
               >
                 <Plus className="mr-2 h-4 w-4" />
                 Add Type
               </Button>
             </CardContent>
             <CardFooter>
-              <Button onClick={handleSaveSystemSettings} disabled={isSaving}>
-                {isSaving ? "Saving..." : "Save Settings"}
+              <Button 
+                onClick={handleSaveSystemSettings} 
+                disabled={isSaving || !hasSystemChanges()}
+                className={hasSystemChanges() ? "bg-orange-600 hover:bg-orange-700" : ""}
+              >
+                {isSaving ? "Saving..." : hasSystemChanges() ? "Save Changes" : "No Changes"}
               </Button>
             </CardFooter>
           </Card>
@@ -371,9 +682,13 @@ export function AdminSettings() {
               <TimeSlotEditor timeSlotSettings={timeSlotSettings} setTimeSlotSettings={setTimeSlotSettings} />
             </CardContent>
             <CardFooter>
-              <Button onClick={handleSaveTimeSlotSettings} disabled={isSaving}>
+              <Button 
+                onClick={handleSaveTimeSlotSettings} 
+                disabled={isSaving || !hasTimeSlotChanges()}
+                className={hasTimeSlotChanges() ? "bg-orange-600 hover:bg-orange-700" : ""}
+              >
                 <Save className="mr-2 h-4 w-4" />
-                {isSaving ? "Saving..." : "Save Time Slot Settings"}
+                {isSaving ? "Saving..." : hasTimeSlotChanges() ? "Save Changes" : "No Changes"}
               </Button>
             </CardFooter>
           </Card>
@@ -396,7 +711,11 @@ export function AdminSettings() {
                           <Input
                             id={`date-${blackoutDate.id}`}
                             type="date"
-                            value={new Date(blackoutDate.date).toISOString().split("T")[0]}
+                            value={
+                              blackoutDate.date instanceof Date 
+                                ? blackoutDate.date.toISOString().split("T")[0]
+                                : new Date(blackoutDate.date).toISOString().split("T")[0]
+                            }
                             onChange={(e) => {
                               const newBlackoutDates = timeSlotSettings.blackoutDates.map((date) => {
                                 if (date.id === blackoutDate.id) {
@@ -440,9 +759,13 @@ export function AdminSettings() {
               </Button>
             </CardContent>
             <CardFooter>
-              <Button onClick={handleSaveTimeSlotSettings} disabled={isSaving}>
+              <Button 
+                onClick={handleSaveTimeSlotSettings} 
+                disabled={isSaving || !hasTimeSlotChanges()}
+                className={hasTimeSlotChanges() ? "bg-orange-600 hover:bg-orange-700" : ""}
+              >
                 <Save className="mr-2 h-4 w-4" />
-                {isSaving ? "Saving..." : "Save Blackout Dates"}
+                {isSaving ? "Saving..." : hasTimeSlotChanges() ? "Save Changes" : "No Changes"}
               </Button>
             </CardFooter>
           </Card>
@@ -531,9 +854,13 @@ export function AdminSettings() {
               </div>
             </CardContent>
             <CardFooter>
-              <Button onClick={handleSaveTimeSlotSettings} disabled={isSaving}>
+              <Button 
+                onClick={handleSaveTimeSlotSettings} 
+                disabled={isSaving || !hasTimeSlotChanges()}
+                className={hasTimeSlotChanges() ? "bg-orange-600 hover:bg-orange-700" : ""}
+              >
                 <Save className="mr-2 h-4 w-4" />
-                {isSaving ? "Saving..." : "Save Duration Settings"}
+                {isSaving ? "Saving..." : hasTimeSlotChanges() ? "Save Changes" : "No Changes"}
               </Button>
             </CardFooter>
           </Card>
@@ -640,9 +967,13 @@ export function AdminSettings() {
               </div>
             </CardContent>
             <CardFooter>
-              <Button onClick={handleSaveEmailSettings} disabled={isSaving}>
+              <Button 
+                onClick={handleSaveEmailSettings} 
+                disabled={isSaving || !hasEmailChanges()}
+                className={hasEmailChanges() ? "bg-orange-600 hover:bg-orange-700" : ""}
+              >
                 <Save className="mr-2 h-4 w-4" />
-                {isSaving ? "Saving..." : "Save Email Settings"}
+                {isSaving ? "Saving..." : hasEmailChanges() ? "Save Changes" : "No Changes"}
               </Button>
             </CardFooter>
           </Card>
@@ -718,9 +1049,13 @@ export function AdminSettings() {
               </div>
             </CardContent>
             <CardFooter>
-              <Button onClick={handleSaveEmailSettings} disabled={isSaving}>
+              <Button 
+                onClick={handleSaveEmailSettings} 
+                disabled={isSaving || !hasEmailChanges()}
+                className={hasEmailChanges() ? "bg-orange-600 hover:bg-orange-700" : ""}
+              >
                 <Save className="mr-2 h-4 w-4" />
-                {isSaving ? "Saving..." : "Save Email Templates"}
+                {isSaving ? "Saving..." : hasEmailChanges() ? "Save Changes" : "No Changes"}
               </Button>
             </CardFooter>
           </Card>

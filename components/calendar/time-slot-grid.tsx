@@ -208,7 +208,7 @@ export function TimeSlotGrid({
                   "justify-center relative h-auto py-3 px-2 text-xs w-full",
                   slot.status === "available" && "border-green-500 bg-green-50 hover:bg-green-200 text-green-800",
                   slot.status === "limited" && "border-amber-500 bg-amber-50 hover:bg-amber-200 text-amber-800",
-                  !slot.available &&
+                  (!slot.available || slot.status === "unavailable") &&
                     "border-red-300 bg-red-50 text-red-700 opacity-60 cursor-not-allowed hover:bg-red-50",
                   selectedStartTime === slot.time && "ring-2 ring-offset-2 ring-primary",
                 )}

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { format, addMinutes, parse, differenceInMinutes } from "date-fns"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { getAvailableTimeSlots, getSystemSettings } from "@/lib/actions"
+import { getAvailableSlots, getSettings, getTimeSlots } from "@/lib/actions"
 import { useToast } from "@/components/ui/use-toast"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ChevronRight, Clock, CalendarIcon, AlertCircle, Users, Info, Edit2, ChevronDown, ChevronUp, Check } from "lucide-react"
@@ -49,6 +49,7 @@ export function ReservationTimeSlots({
   const [allowOverlapping, setAllowOverlapping] = useState(false)
   const [use12HourFormat, setUse12HourFormat] = useState(true)
   const [systemSettings, setSystemSettings] = useState<any>(null)
+  const [timeSlotSettings, setTimeSlotSettings] = useState<any>(null)
   const [durationOptions, setDurationOptions] = useState<number[]>([30, 60, 90, 120, 180, 240])
   const [selectedDuration, setSelectedDuration] = useState<number>(initialDuration || 60)
   const [hasOverlap, setHasOverlap] = useState(false)
@@ -59,10 +60,29 @@ export function ReservationTimeSlots({
 
   // Fetch available time slots and system settings for the selected date
   useEffect(() => {
+    // Use AbortController to cancel previous requests if component unmounts or effect reruns
+    const abortController = new AbortController();
+    
     const fetchData = async () => {
       setIsLoading(true)
+      
+      // Start a timeout to detect slow requests
+      const timeoutId = setTimeout(() => {
+        console.log("Time slots data fetch is taking longer than expected");
+      }, 2000);
+      
       try {
-        const [slots, settings] = await Promise.all([getAvailableTimeSlots(selectedDate), getSystemSettings()])
+        // Make the requests in parallel to improve performance
+        const [slots, settings, timeSlotSettings] = await Promise.all([
+          getAvailableSlots(selectedDate), 
+          getSettings(), 
+          getTimeSlots()
+        ])
+        
+        // Clear timeout as request completed
+        clearTimeout(timeoutId);
+        
+        if (abortController.signal.aborted) return;
 
         // Sort time slots chronologically
         const sortedSlots = [...slots].sort((a, b) => {
@@ -84,14 +104,15 @@ export function ReservationTimeSlots({
 
         setTimeSlots(slotsWithOccupancy)
         setSystemSettings(settings)
+        setTimeSlotSettings(timeSlotSettings)
         setAllowOverlapping(settings.allowOverlapping)
         setUse12HourFormat(settings.use12HourFormat !== false) // Default to true if not specified
 
         // Set operational hours
-        if (settings.timeSlotSettings?.businessHours) {
+        if (timeSlotSettings?.businessHours) {
           const dayOfWeek = selectedDate.getDay()
           const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
-          const daySchedule = settings.timeSlotSettings.businessHours[dayNames[dayOfWeek]]
+          const daySchedule = timeSlotSettings.businessHours[dayNames[dayOfWeek]]
 
           if (daySchedule && daySchedule.enabled && daySchedule.timeSlots.length > 0) {
             const firstSlot = daySchedule.timeSlots[0]
@@ -105,9 +126,9 @@ export function ReservationTimeSlots({
         }
 
         // Set duration options based on system settings
-        const minDuration = settings.timeSlotSettings?.minDuration || 30
-        const maxDuration = settings.timeSlotSettings?.maxDuration || 240
-        const interval = settings.timeSlotSettings?.timeSlotInterval || 30
+        const minDuration = timeSlotSettings?.minDuration || 30
+        const maxDuration = timeSlotSettings?.maxDuration || 240
+        const interval = timeSlotSettings?.timeSlotInterval || 30
 
         const options: number[] = []
         for (let i = minDuration; i <= maxDuration; i += interval) {
@@ -131,11 +152,18 @@ export function ReservationTimeSlots({
           variant: "destructive",
         })
       } finally {
-        setIsLoading(false)
+        if (!abortController.signal.aborted) {
+          setIsLoading(false)
+        }
       }
     }
 
     fetchData()
+    
+    // Cleanup function to abort fetch if component unmounts or effect reruns
+    return () => {
+      abortController.abort();
+    }
   }, [selectedDate, toast, initialStartTime, initialDuration])
 
   // Handle initial duration prop changes
@@ -147,7 +175,7 @@ export function ReservationTimeSlots({
 
   // Update available end times when start time changes
   useEffect(() => {
-    if (selectedStartTime && timeSlots.length > 0 && systemSettings) {
+    if (selectedStartTime && timeSlots.length > 0 && timeSlotSettings) {
       // Find the index of the selected start time
       const startIndex = timeSlots.findIndex((slot) => slot.time === selectedStartTime)
       if (startIndex === -1) return
@@ -164,8 +192,8 @@ export function ReservationTimeSlots({
       setMaxPossibleDuration(calculatedMaxDuration)
 
       // Update duration options based on the new maximum duration
-      const systemMinDuration = systemSettings?.timeSlotSettings?.minDuration || 30
-      const systemInterval = systemSettings?.timeSlotSettings?.timeSlotInterval || 30
+      const systemMinDuration = timeSlotSettings?.minDuration || 30
+      const systemInterval = timeSlotSettings?.timeSlotInterval || 30
       
       const newDurationOptions: number[] = []
       for (let duration = systemMinDuration; duration <= calculatedMaxDuration; duration += systemInterval) {
@@ -257,7 +285,7 @@ export function ReservationTimeSlots({
     timeSlots,
     allowOverlapping,
     operationalHours,
-    systemSettings,
+    timeSlotSettings,
   ])
 
   // Format time for display (12-hour or 24-hour)

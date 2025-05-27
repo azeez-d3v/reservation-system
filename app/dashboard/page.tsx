@@ -30,8 +30,26 @@ export default function DashboardPage() {
       const fetchData = async () => {
         setIsLoadingData(true)
         try {
+          console.log("User object:", user)
+          console.log("User ID:", user.id)
+          console.log("User email:", user.email)
           const [userReservations, userStats] = await Promise.all([getUserReservations(user.id), getUserStats(user.id)])
-          setReservations(userReservations)
+          console.log("Fetched reservations:", userReservations)
+          console.log("Fetched stats:", userStats)
+          
+          // Transform the flat array of reservations into categorized groups
+          const now = new Date()
+          const categorizedReservations = {
+            active: userReservations.filter(r => r.status === "approved" && new Date(r.date) >= now),
+            pending: userReservations.filter(r => r.status === "pending"),
+            past: userReservations.filter(r => 
+              (r.status === "approved" && new Date(r.date) < now) || 
+              r.status === "rejected" || 
+              r.status === "cancelled"
+            ),
+          }
+          
+          setReservations(categorizedReservations)
           setStats(userStats)
         } catch (error) {
           console.error("Failed to fetch user data:", error)

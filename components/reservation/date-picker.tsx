@@ -31,11 +31,13 @@ export function ReservationDatePicker({ selectedDate, onDateSelected, minBookabl
   const [availabilityMap, setAvailabilityMap] = useState<Record<string, string>>({})
   const [isLoading, setIsLoading] = useState(true)
   const [selectedDateState, setSelectedDateState] = useState<Date | null>(selectedDate || null)
-  const [earliestAvailable, setEarliestAvailable] = useState<Date | null>(null)
   const [currentMonth, setCurrentMonth] = useState(selectedDate || new Date())
 
   // Fetch available dates for the current month
   useEffect(() => {
+    // Use AbortController to cancel previous requests if component unmounts or effect reruns
+    const abortController = new AbortController();
+
     const fetchAvailableDates = async () => {
       setIsLoading(true)
       try {
@@ -43,21 +45,35 @@ export function ReservationDatePicker({ selectedDate, onDateSelected, minBookabl
         const firstDay = startOfMonth(currentMonth)
         const lastDay = endOfMonth(currentMonth)
 
-        const response = await getPublicAvailability(firstDay, lastDay, true)
-        setAvailabilityMap(response.availabilityMap || {})
+        // Start a timeout to track slow requests
+        const timeoutId = setTimeout(() => {
+          console.log("Date availability fetch is taking longer than expected");
+        }, 2000);
 
-        if (response.earliestAvailable) {
-          setEarliestAvailable(new Date(response.earliestAvailable))
-        }
+        const response = await getPublicAvailability(firstDay, lastDay, true)
+        
+        // Clear the timeout since request completed
+        clearTimeout(timeoutId);
+
+        if (abortController.signal.aborted) return;
+        
+        setAvailabilityMap(response.availabilityMap || {})
       } catch (error) {
         console.error("Failed to fetch available dates:", error)
       } finally {
-        setIsLoading(false)
+        if (!abortController.signal.aborted) {
+          setIsLoading(false)
+        }
       }
     }
 
     fetchAvailableDates()
-  }, [currentMonth])
+    
+    // Cleanup function to abort fetch if component unmounts or effect reruns
+    return () => {
+      abortController.abort();
+    }
+  }, [currentMonth, selectedDateState])
 
   // Check if a date is available and get its status
   const getDateAvailability = (date: Date) => {
@@ -127,11 +143,6 @@ export function ReservationDatePicker({ selectedDate, onDateSelected, minBookabl
             <CardTitle>Select a Date</CardTitle>
             <CardDescription>
               Choose a date for your reservation. Color indicates availability.
-              {earliestAvailable && (
-                <span className="block mt-1">
-                  Earliest available date: {format(earliestAvailable, "EEEE, MMMM d, yyyy")}
-                </span>
-              )}
             </CardDescription>
           </div>
           <div className="flex items-center space-x-2">

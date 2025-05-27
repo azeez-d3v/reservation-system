@@ -7,15 +7,32 @@ export default withAuth(
   {
     callbacks: {
       authorized: ({ token, req }) => {
+        // Debug logging
+        console.log("Middleware - Path:", req.nextUrl.pathname)
+        console.log("Middleware - Token:", {
+          email: token?.email,
+          role: token?.role,
+          status: token?.status,
+          hasToken: !!token
+        })
+
         // Check if user is authenticated
-        if (!token) return false
+        if (!token) {
+          console.log("Middleware - No token, denying access")
+          return false
+        }
 
         // Check if user is active
-        if (token.status === "inactive") return false
+        if (token.status === "inactive") {
+          console.log("Middleware - User inactive, denying access")
+          return false
+        }
 
         // Admin routes require admin role
         if (req.nextUrl.pathname.startsWith("/admin")) {
-          return token.role === "admin"
+          const isAdmin = token.role === "admin"
+          console.log("Middleware - Admin route check:", { role: token.role, isAdmin })
+          return isAdmin
         }
 
         // Protected routes require authentication

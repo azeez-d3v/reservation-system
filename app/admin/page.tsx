@@ -37,7 +37,7 @@ export default function AdminPage() {
         </CardHeader>
         <CardContent className="p-0">
           <Tabs defaultValue="requests" value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <div className="border-b px-6">
+            <div className="px-6">
               <TabsList className="mb-0">
                 <TabsTrigger value="requests">
                   <Clock className="h-4 w-4 mr-2" />

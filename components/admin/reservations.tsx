@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { useToast } from "@/components/ui/use-toast"
-import { getApprovedReservations, cancelReservation } from "@/lib/actions"
+import { getReservationList, cancelReservation } from "@/lib/actions"
 import type { Reservation } from "@/lib/types"
 import { format } from "date-fns"
 import { CalendarIcon, Search, Filter, Trash2 } from "lucide-react"
@@ -41,7 +41,7 @@ export function AdminReservations() {
   const fetchReservations = async () => {
     setIsLoading(true)
     try {
-      const data = await getApprovedReservations()
+      const data = await getReservationList("approved")
       setReservations(data)
       setFilteredReservations(data)
     } catch (error) {

@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { format } from "date-fns"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -12,9 +12,10 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
-import { createReservationRequest } from "@/lib/actions"
+import { submitReservation, getSystemSettings } from "@/lib/actions"
 import { useAuth } from "@/hooks/use-auth"
 import { CalendarDays, Clock, Users, FileText } from "lucide-react"
+import type { SystemSettings } from "@/lib/types"
 
 interface ReservationDetailsFormProps {
   selectedDate: Date
@@ -28,10 +29,34 @@ export function ReservationDetailsForm({ selectedDate, startTime, endTime, onBac
   const { toast } = useToast()
   const { user } = useAuth()
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [reservationType, setReservationType] = useState("meeting")
+  const [reservationType, setReservationType] = useState("")
   const [purpose, setPurpose] = useState("")
   const [attendees, setAttendees] = useState("1")
   const [notes, setNotes] = useState("")
+  const [settings, setSettings] = useState<SystemSettings | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  
+  // Fetch system settings when component mounts
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const systemSettings = await getSystemSettings()
+        setSettings(systemSettings)
+        
+        // Set default reservation type if available
+        if (systemSettings?.reservationTypes?.length > 0) {
+          setReservationType(systemSettings.reservationTypes[0])
+        }
+        
+        setIsLoading(false)
+      } catch (error) {
+        console.error("Error fetching system settings:", error)
+        setIsLoading(false)
+      }
+    }
+    
+    fetchSettings()
+  }, [])
   
   // Calculate the actual end time if it's not provided
   const displayEndTime = endTime || (() => {
@@ -56,18 +81,22 @@ export function ReservationDetailsForm({ selectedDate, startTime, endTime, onBac
     setIsSubmitting(true)
 
     try {
-      await createReservationRequest({
+      const result = await submitReservation({
         userId: user?.id || "",
         name: user?.name || "",
         email: user?.email || "",
         date: selectedDate,
         startTime,
-        endTime,
+        endTime: displayEndTime, // Use the calculated end time
         purpose,
         attendees: Number.parseInt(attendees, 10),
         type: reservationType,
         notes: notes || undefined,
       })
+
+      if (!result.success) {
+        throw new Error(result.message)
+      }
 
       toast({
         title: "Reservation Request Submitted",
@@ -76,9 +105,10 @@ export function ReservationDetailsForm({ selectedDate, startTime, endTime, onBac
 
       router.push("/dashboard")
     } catch (error) {
+      console.error("Error submitting reservation:", error)
       toast({
         title: "Error",
-        description: "There was a problem submitting your request.",
+        description: error instanceof Error ? error.message : "There was a problem submitting your request.",
         variant: "destructive",
       })
     } finally {
@@ -115,15 +145,25 @@ export function ReservationDetailsForm({ selectedDate, startTime, endTime, onBac
 
           <div className="space-y-2">
             <Label htmlFor="type">Reservation Type</Label>
-            <Select value={reservationType} onValueChange={setReservationType} required>
+            <Select value={reservationType} onValueChange={setReservationType} required disabled={isLoading}>
               <SelectTrigger id="type">
-                <SelectValue placeholder="Select type" />
+                <SelectValue placeholder={isLoading ? "Loading..." : "Select type"} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="meeting">Meeting</SelectItem>
-                <SelectItem value="event">Event</SelectItem>
-                <SelectItem value="training">Training</SelectItem>
-                <SelectItem value="other">Other</SelectItem>
+                {isLoading ? (
+                  <SelectItem value="loading" disabled>Loading...</SelectItem>
+                ) : settings?.reservationTypes && settings.reservationTypes.length > 0 ? (
+                  settings.reservationTypes.map((type) => (
+                    <SelectItem key={type} value={type}>{type}</SelectItem>
+                  ))
+                ) : (
+                  <>
+                    <SelectItem value="meeting">Meeting</SelectItem>
+                    <SelectItem value="event">Event</SelectItem>
+                    <SelectItem value="training">Training</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </>
+                )}
               </SelectContent>
             </Select>
           </div>
@@ -170,8 +210,11 @@ export function ReservationDetailsForm({ selectedDate, startTime, endTime, onBac
             </div>
           </div>
         </CardContent>
-        <CardFooter className="flex justify-end">
-          <Button type="submit" disabled={isSubmitting}>
+        <CardFooter className="flex justify-between">
+          <Button type="button" variant="outline" onClick={onBack} disabled={isSubmitting}>
+            Back
+          </Button>
+          <Button type="submit" disabled={isSubmitting || isLoading}>
             {isSubmitting ? "Submitting..." : "Submit Reservation Request"}
           </Button>
         </CardFooter>

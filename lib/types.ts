@@ -10,8 +10,9 @@ export interface Reservation {
   attendees: number
   type: string
   notes?: string
-  status: "pending" | "approved" | "rejected"
+  status: "pending" | "approved" | "rejected" | "cancelled"
   createdAt: Date
+  updatedAt?: Date
 }
 
 export interface ReservationRequest {
@@ -36,6 +37,7 @@ export interface TimeSlotSettings {
   maxDuration: number
   timeSlotInterval: number
   bufferTime: number
+  timeSlots?: TimeSlot[]
 }
 
 export interface DaySchedule {
@@ -66,7 +68,7 @@ export interface SystemSettings {
   publicCalendar: boolean
   reservationTypes: string[]
   use12HourFormat: boolean
-  timeSlotSettings: TimeSlotSettings
+  maxAdvanceBookingDays?: number
 }
 
 export interface EmailSettings {
@@ -86,6 +88,7 @@ export interface EmailTemplates {
   approval: string
   rejection: string
   notification: string
+  confirmationSubject?: string
 }
 
 export interface User {

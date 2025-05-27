@@ -19,8 +19,24 @@ export function DashboardStats({ stats, isLoading }: DashboardStatsProps) {
     )
   }
 
-  if (!stats) {
-    return null
+  // Use default values of 0 if stats is null or undefined
+  const defaultStats = {
+    totalReservations: 0,
+    pendingRequests: 0,
+    approvedReservations: 0,
+    rejectedReservations: 0,
+    approvedCount: 0,
+    rejectedCount: 0
+  }
+  
+  // Ensure all required stats properties exist with fallback values
+  const displayStats = {
+    ...defaultStats,
+    ...(stats || {}),
+    // Map pendingReservations to pendingRequests for display
+    pendingRequests: stats?.pendingReservations || stats?.pendingRequests || stats?.pending || 0,
+    // Count both rejected and cancelled reservations for the "Rejected" card
+    rejectedReservations: (stats?.rejectedReservations || 0) + (stats?.cancelledReservations || 0)
   }
 
   return (
@@ -30,7 +46,7 @@ export function DashboardStats({ stats, isLoading }: DashboardStatsProps) {
           <div className="flex items-center justify-between space-x-4">
             <div>
               <p className="text-sm font-medium text-muted-foreground">Total Reservations</p>
-              <p className="text-3xl font-bold">{stats.totalReservations}</p>
+              <p className="text-3xl font-bold">{displayStats.totalReservations}</p>
             </div>
             <div className="rounded-full bg-blue-100 p-3 text-blue-600">
               <CalendarDays className="h-6 w-6" />
@@ -44,7 +60,7 @@ export function DashboardStats({ stats, isLoading }: DashboardStatsProps) {
           <div className="flex items-center justify-between space-x-4">
             <div>
               <p className="text-sm font-medium text-muted-foreground">Pending Requests</p>
-              <p className="text-3xl font-bold">{stats.pendingRequests}</p>
+              <p className="text-3xl font-bold">{displayStats.pendingRequests}</p>
             </div>
             <div className="rounded-full bg-amber-100 p-3 text-amber-600">
               <Clock className="h-6 w-6" />
@@ -58,7 +74,7 @@ export function DashboardStats({ stats, isLoading }: DashboardStatsProps) {
           <div className="flex items-center justify-between space-x-4">
             <div>
               <p className="text-sm font-medium text-muted-foreground">Approved</p>
-              <p className="text-3xl font-bold">{stats.approvedCount}</p>
+              <p className="text-3xl font-bold">{displayStats.approvedReservations}</p>
             </div>
             <div className="rounded-full bg-green-100 p-3 text-green-600">
               <CheckCircle className="h-6 w-6" />
@@ -72,7 +88,7 @@ export function DashboardStats({ stats, isLoading }: DashboardStatsProps) {
           <div className="flex items-center justify-between space-x-4">
             <div>
               <p className="text-sm font-medium text-muted-foreground">Rejected</p>
-              <p className="text-3xl font-bold">{stats.rejectedCount}</p>
+              <p className="text-3xl font-bold">{displayStats.rejectedReservations}</p>
             </div>
             <div className="rounded-full bg-red-100 p-3 text-red-600">
               <XCircle className="h-6 w-6" />

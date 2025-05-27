@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { useToast } from "@/components/ui/use-toast"
-import { getReservationRequests, getApprovedReservations, approveReservation, rejectReservation } from "@/lib/actions"
+import { getReservationList, approveReservation, cancelReservation } from "@/lib/actions"
 import type { Reservation } from "@/lib/types"
 import { format } from "date-fns"
 import { AlertCircle, CheckCircle, XCircle, Filter, Search, Clock, Users, Info } from "lucide-react"
@@ -42,7 +42,7 @@ export function AdminRequests() {
   const fetchData = async () => {
     setIsLoading(true)
     try {
-      const [pending, approved] = await Promise.all([getReservationRequests(), getApprovedReservations()])
+      const [pending, approved] = await Promise.all([getReservationList("pending"), getReservationList("approved")])
       setPendingRequests(pending)
       setFilteredRequests(pending)
       setApprovedReservations(approved)
@@ -197,7 +197,7 @@ export function AdminRequests() {
 
   const handleReject = async (id: string) => {
     try {
-      await rejectReservation(id)
+      await cancelReservation(id)
       toast({
         title: "Reservation Rejected",
         description: "The reservation request has been rejected.",
