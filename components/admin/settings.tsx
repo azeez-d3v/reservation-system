@@ -675,7 +675,7 @@ export function AdminSettings() {
         <TabsContent value="timeslots" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Business Hours</CardTitle>
+              <CardTitle>School Hours</CardTitle>
               <CardDescription>Set the hours when reservations can be made.</CardDescription>
             </CardHeader>
             <CardContent>
@@ -772,7 +772,7 @@ export function AdminSettings() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Reservation Duration</CardTitle>
+              <CardTitle>Reservation Settings</CardTitle>
               <CardDescription>Configure minimum and maximum reservation duration.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">

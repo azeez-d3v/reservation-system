@@ -52,7 +52,6 @@ export function ReservationTimeSlots({
   const [selectedStartTime, setSelectedStartTime] = useState<string | null>(initialStartTime || null)
   const [selectedEndTime, setSelectedEndTime] = useState<string | null>(null)
   const [availableEndTimes, setAvailableEndTimes] = useState<string[]>([])
-  const [allowOverlapping, setAllowOverlapping] = useState(false)
   const [use12HourFormat, setUse12HourFormat] = useState(true)
   const [systemSettings, setSystemSettings] = useState<any>(null)
   const [timeSlotSettings, setTimeSlotSettings] = useState<any>(null)
@@ -127,7 +126,6 @@ export function ReservationTimeSlots({
         setTimeSlots(slotsWithEnhancedData)
         setSystemSettings(settings)
         setTimeSlotSettings(timeSlotSettings)
-        setAllowOverlapping(settings.allowOverlapping)
         setUse12HourFormat(settings.use12HourFormat !== false) // Default to true if not specified
 
         // Set operational hours
@@ -245,10 +243,8 @@ export function ReservationTimeSlots({
       for (let i = startIndex; i < timeSlots.length; i++) {
         const currentTime = timeSlots[i].time
         // If we've reached or passed the end time, break
-        if (currentTime >= calculatedEndTime) break
-
-        // If this slot is not available and we're not allowing overlaps, there's a conflict
-        if (!timeSlots[i].available && !allowOverlapping) {
+        if (currentTime >= calculatedEndTime) break        // If this slot is not available and we're not allowing overlaps, there's a conflict
+        if (!timeSlots[i].available && !systemSettings?.allowOverlapping) {
           hasConflict = true
           break
         }
@@ -270,7 +266,7 @@ export function ReservationTimeSlots({
           // Check if all slots between start and end are available or we allow overlapping
           let isAvailable = true
 
-          if (!allowOverlapping) {
+          if (!systemSettings?.allowOverlapping) {
             // Find the end time index
             const endTimeIndex = timeSlots.findIndex((slot) => slot.time === potentialEndTime)
 
@@ -283,7 +279,7 @@ export function ReservationTimeSlots({
             }
           }
 
-          if (isAvailable || allowOverlapping) {
+          if (isAvailable || systemSettings?.allowOverlapping) {
             endTimes.push(potentialEndTime)
           }
         }
@@ -300,15 +296,14 @@ export function ReservationTimeSlots({
       } else {
         setSelectedEndTime(null)
       }
-    }
-  }, [
+    }  }, [
     selectedStartTime,
     selectedDuration,
     timeSlots,
-    allowOverlapping,
+    systemSettings?.allowOverlapping,
     operationalHours,
     timeSlotSettings,
-  ])  // Real-time validation when time slot is selected
+  ])// Real-time validation when time slot is selected
   useEffect(() => {
     const performValidation = async () => {
       if (!selectedStartTime || !selectedEndTime) {
@@ -317,12 +312,11 @@ export function ReservationTimeSlots({
       }
 
       setIsValidating(true)
-      try {
-        const backendResult = await validateTimeSlot(
+      try {        const backendResult = await validateTimeSlot(
           selectedDate,
           selectedStartTime,
           selectedEndTime,
-          allowOverlapping ? undefined : "no-overlap"
+          systemSettings?.allowOverlapping ? undefined : "no-overlap"
         )
         
         // Map backend result to ValidationResult interface
@@ -358,7 +352,7 @@ export function ReservationTimeSlots({
     }
 
     performValidation()
-  }, [selectedStartTime, selectedEndTime, selectedDate, allowOverlapping])  // Check if all slots are unavailable and fetch alternatives
+  }, [selectedStartTime, selectedEndTime, selectedDate, systemSettings?.allowOverlapping])  // Check if all slots are unavailable and fetch alternatives
   useEffect(() => {
     const checkAvailabilityAndFetchAlternatives = async () => {
       if (timeSlots.length === 0) return
@@ -449,10 +443,8 @@ export function ReservationTimeSlots({
       const selectedSlot = timeSlots.find(slot => slot.time === time)
       if (!selectedSlot) {
         throw new Error('Selected time slot not found')
-      }
-
-      // Check if slot is available (unless overlapping is allowed)
-      if (!allowOverlapping && !selectedSlot.available) {        setValidationResult({
+      }      // Check if slot is available (unless overlapping is allowed)
+      if (!systemSettings?.allowOverlapping && !selectedSlot.available) {setValidationResult({
           isValid: false,
           errors: ['This time slot is not available for new reservations'],
           warnings: [],
@@ -470,10 +462,8 @@ export function ReservationTimeSlots({
           }
         })
         return
-      }
-
-      // Enhanced validation for capacity and conflicts
-      if (selectedSlot.occupancy >= selectedSlot.capacity && !allowOverlapping) {        setValidationResult({
+      }      // Enhanced validation for capacity and conflicts
+      if (selectedSlot.occupancy >= selectedSlot.capacity && !systemSettings?.allowOverlapping) {setValidationResult({
           isValid: false,
           errors: ['This time slot has reached maximum capacity'],
           warnings: [],
@@ -500,7 +490,7 @@ export function ReservationTimeSlots({
       if (selectedSlot.occupancy > 0) {
         warnings.push(`This time slot already has ${selectedSlot.occupancy} reservation${selectedSlot.occupancy > 1 ? 's' : ''}`)
       }
-      if (allowOverlapping && selectedSlot.occupancy >= selectedSlot.capacity) {
+      if (systemSettings?.allowOverlapping && selectedSlot.occupancy >= selectedSlot.capacity) {
         warnings.push('This slot is at or over capacity - overlapping is enabled')
       }      setValidationResult({
         isValid: true,
@@ -580,7 +570,7 @@ export function ReservationTimeSlots({
         selectedDate,
         selectedStartTime,
         selectedEndTime,
-        allowOverlapping ? undefined : "no-overlap"
+        systemSettings?.allowOverlapping ? undefined : "no-overlap"
       )
 
       if (!finalValidation.isValid) {
@@ -664,13 +654,7 @@ export function ReservationTimeSlots({
     } else {
       return `${hours} hour${hours > 1 ? "s" : ""} ${mins} minutes`
     }
-  }
-  // Toggle allowing overlapping reservations
-  const handleOverlappingToggle = (checked: boolean) => {
-    setAllowOverlapping(checked)
-  }
-
-  // Get the selected time slot details
+  }  // Get the selected time slot details
   const getSelectedTimeSlotDetails = () => {
     if (!selectedStartTime) return null
     return timeSlots.find((slot) => slot.time === selectedStartTime)
@@ -724,17 +708,17 @@ export function ReservationTimeSlots({
                   The gymnasium is open from {formatTimeForDisplay(operationalHours.start)} to{" "}
                   {formatTimeForDisplay(operationalHours.end)}. Reservations must end by closing time.
                 </AlertDescription>
+              </Alert>              {/* Admin-Controlled Overlapping Setting Info */}
+              <Alert className={systemSettings?.allowOverlapping ? "border-green-200 bg-green-50" : "border-orange-200 bg-orange-50"}>
+                <Info className="h-4 w-4" />
+                <AlertTitle>Overlapping Reservations Policy</AlertTitle>
+                <AlertDescription>
+                  {systemSettings?.allowOverlapping 
+                    ? "Overlapping reservations are currently enabled by administrator. Multiple bookings can be made for the same time slot."
+                    : "Overlapping reservations are currently disabled by administrator. Only one booking per time slot is allowed."
+                  }
+                </AlertDescription>
               </Alert>
-
-              {/* Overlapping Toggle */}
-              {systemSettings?.allowOverlapping && (
-                <div className="flex items-center space-x-2 p-3 bg-muted/30 rounded-lg">
-                  <Switch id="allow-overlapping" checked={allowOverlapping} onCheckedChange={handleOverlappingToggle} />
-                  <Label htmlFor="allow-overlapping" className="text-sm font-medium">
-                    Allow overlapping reservations
-                  </Label>
-                </div>
-              )}
 
               {/* Collapsible Time Picker */}
               <Collapsible open={isTimePickerExpanded} onOpenChange={setIsTimePickerExpanded}>
@@ -766,59 +750,59 @@ export function ReservationTimeSlots({
                 </CollapsibleTrigger>
                 
                 <CollapsibleContent className="mt-4">
-                  <Card className="border-blue-200 bg-blue-50/30">
-                    <CardHeader className="pb-4">
-                      <CardTitle className="text-lg flex items-center gap-2">
-                        <Clock className="h-5 w-5 text-blue-600" />
+                  <Card className="border-blue-200 bg-blue-50/30">                    <CardHeader className="pb-2 pt-3">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <Clock className="h-4 w-4 text-blue-600" />
                         Available Time Slots
                       </CardTitle>
-                      <CardDescription>
+                      <CardDescription className="text-xs">
                         Select your preferred start time from the available slots below
                       </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="max-h-[60vh] overflow-y-auto pr-2">
-                        {/* Changed from grouped display to single responsive grid */}                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+                    </CardHeader>                    <CardContent className="pt-0 px-2 pb-2">                      <div>
+                        {/* Compact 4-column flex-wrap layout */}
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1">
                           {timeSlots.map((slot) => {
                             const hasConflicts = slot.conflicts && slot.conflicts.length > 0
-                            const isFullyBooked = slot.status === "full" || slot.status === "unavailable"
+                            const isFullyBooked = slot.status === "full" || slot.status === "unavailable" || slot.occupancy >= slot.capacity
                             const isLimited = slot.status === "limited"
-                            const isAvailable = slot.status === "available"
+                            const isAvailable = slot.status === "available" && slot.occupancy < slot.capacity
                             
                             return (
                               <div key={`start-${slot.time}`} className="relative group">
                                 <Button
                                   variant="outline"
-                                  size="lg"
+                                  size="sm"
                                   className={cn(
-                                    "h-auto py-4 px-3 relative flex flex-col items-center justify-center transition-all duration-200 w-full",
-                                    "border-2 rounded-xl shadow-sm hover:shadow-md overflow-hidden",
-                                    // Styling based on availability and overlapping settings
-                                    allowOverlapping && "border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-800 hover:border-blue-300",
-                                    !allowOverlapping && isAvailable && "border-green-200 bg-green-50 hover:bg-green-100 text-green-800 hover:border-green-300",
-                                    !allowOverlapping && isLimited && "border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-800 hover:border-amber-300",
-                                    !allowOverlapping && isFullyBooked && "border-red-200 bg-red-50 text-red-600 opacity-50 cursor-not-allowed hover:bg-red-50",
+                                    "h-auto py-2 px-1 relative flex flex-col items-center justify-center transition-all duration-200 w-full",
+                                    "border rounded-lg shadow-sm hover:shadow-md overflow-hidden",                                    // Styling based on availability and overlapping settings
+                                    systemSettings?.allowOverlapping && slot.occupancy < slot.capacity && "border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-800 hover:border-blue-300",
+                                    systemSettings?.allowOverlapping && slot.occupancy >= slot.capacity && "border-red-200 bg-red-50 text-red-600 opacity-60 cursor-not-allowed hover:bg-red-50",
+                                    !systemSettings?.allowOverlapping && isAvailable && "border-green-200 bg-green-50 hover:bg-green-100 text-green-800 hover:border-green-300",
+                                    !systemSettings?.allowOverlapping && isLimited && "border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-800 hover:border-amber-300",
+                                    !systemSettings?.allowOverlapping && isFullyBooked && "border-red-200 bg-red-50 text-red-600 opacity-60 cursor-not-allowed hover:bg-red-50",
                                     selectedStartTime === slot.time && "ring-2 ring-offset-2 ring-blue-500 scale-105 shadow-lg border-blue-400"
-                                  )}
-                                  onClick={() => (allowOverlapping || slot.available) && handleStartTimeClick(slot.time)}
-                                  disabled={!allowOverlapping && !slot.available}
-                                >
-                                  <span className="text-sm font-semibold mb-1">
+                                  )}                                  onClick={() => (systemSettings?.allowOverlapping || (slot.available && slot.occupancy < slot.capacity)) && handleStartTimeClick(slot.time)}
+                                  disabled={!systemSettings?.allowOverlapping && (!slot.available || slot.occupancy >= slot.capacity)}
+                                >                                  {/* More compact layout with time display */}
+                                  <span className="text-xs font-semibold">
                                     {formatTimeForDisplay(slot.time)}
                                   </span>
                                   
-                                  {/* Occupancy indicator */}
-                                  {slot.occupancy > 0 && (
-                                    <div className="flex items-center text-xs opacity-75 mb-1">
-                                      <Users className="h-3 w-3 mr-1" />
-                                      <span>{slot.occupancy}/{slot.capacity}</span>
-                                    </div>
-                                  )}
+                                  {/* Compact occupancy indicator */}
+                                  <div className={cn(
+                                    "flex items-center text-xs",
+                                    slot.occupancy >= slot.capacity ? "text-red-500 font-medium" : "opacity-75"
+                                  )}>
+                                    <Users className="h-3 w-3 mr-0.5" />
+                                    <span>{slot.occupancy}/{slot.capacity}</span>
+                                  </div>
                                   
                                   {/* Status indicator */}
-                                  <div className="text-xs mt-1 opacity-60">
-                                    {allowOverlapping 
-                                      ? "Available" 
+                                  <div className={cn(
+                                    "text-xs opacity-60",
+                                    slot.occupancy >= slot.capacity ? "text-red-500" : ""
+                                  )}>                                    {systemSettings?.allowOverlapping 
+                                      ? (slot.occupancy >= slot.capacity ? "Full" : "Available")
                                       : isAvailable 
                                         ? "Open" 
                                         : isLimited 
@@ -826,33 +810,30 @@ export function ReservationTimeSlots({
                                           : "Full"
                                     }
                                   </div>
-                                  
-                                  {/* Check mark for selected slot */}
+                                    {/* Compact check mark for selected slot */}
                                   {selectedStartTime === slot.time && (
-                                    <div className="absolute top-2 left-2">
-                                      <div className="w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center">
-                                        <Check className="w-3 h-3 text-white stroke-2" />
+                                    <div className="absolute top-1 left-1">
+                                      <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
+                                        <Check className="w-2 h-2 text-white stroke-2" />
                                       </div>
                                     </div>
                                   )}
-                                  
-                                  {/* Occupancy badge for overlapping mode */}
-                                  {slot.occupancy > 0 && allowOverlapping && (
-                                    <span className="absolute top-1 right-1 inline-flex items-center justify-center h-5 w-5 rounded-full bg-amber-500 text-white text-xs font-bold leading-none">
+                                    {/* Compact occupancy badge for overlapping mode */}
+                                  {slot.occupancy > 0 && systemSettings?.allowOverlapping && (
+                                    <span className="absolute top-1 right-1 inline-flex items-center justify-center h-4 w-4 rounded-full bg-amber-500 text-white text-xs font-bold leading-none">
                                       {slot.occupancy}
                                     </span>
                                   )}
                                 </Button>
-                                  {/* Conflict details tooltip */}
-                                {hasConflicts && (
-                                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-black text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none min-w-max">
-                                    <div className="font-semibold mb-1">Existing Reservations:</div>
+                                  {/* Conflict details tooltip */}                                {hasConflicts && (
+                                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1 px-2 py-1 bg-black/90 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none min-w-max">
+                                    <div className="font-semibold text-xs mb-0.5">Existing Reservations:</div>
                                     {(slot.conflicts || []).map((conflict, index) => (
                                       <div key={conflict.id} className="text-xs">
                                         {index + 1}. {conflict.name} ({formatTimeForDisplay(conflict.startTime)} - {formatTimeForDisplay(conflict.endTime)})
                                       </div>
                                     ))}
-                                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-black"></div>
+                                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-2 border-transparent border-t-black/90"></div>
                                   </div>
                                 )}
                               </div>
@@ -1179,16 +1160,13 @@ export function ReservationTimeSlots({
                           </div>
                         </div>
                       </div>
-                    </div>
-
-                    {/* Conflict Warning */}
-                    {hasOverlap && !allowOverlapping && (
+                    </div>                    {/* Conflict Warning */}
+                    {hasOverlap && !systemSettings?.allowOverlapping && (
                       <Alert variant="destructive" className="border-red-200 bg-red-50">
                         <AlertCircle className="h-4 w-4" />
-                        <AlertTitle>Scheduling Conflict</AlertTitle>
-                        <AlertDescription>
+                        <AlertTitle>Scheduling Conflict</AlertTitle>                        <AlertDescription>
                           The selected time slot overlaps with existing reservations. Please choose a different
-                          time or enable "Allow overlapping reservations".
+                          time slot or contact administrator to enable overlapping reservations.
                         </AlertDescription>
                       </Alert>
                     )}
@@ -1225,7 +1203,7 @@ export function ReservationTimeSlots({
             onClick={handleContinue}            disabled={
               !selectedStartTime || 
               !selectedEndTime || 
-              (hasOverlap && !allowOverlapping) ||
+              (hasOverlap && !systemSettings?.allowOverlapping) ||
               isValidating ||
               (validationResult !== null && !validationResult.isValid)
             }
