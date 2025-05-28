@@ -4,20 +4,28 @@ import { useState, useEffect } from "react"
 import { format, addMinutes, parse, differenceInMinutes } from "date-fns"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { Clock, Users, Info, AlertCircle } from "lucide-react"
+import { Clock, Users, Info, AlertCircle, AlertTriangle, CheckCircle } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Progress } from "@/components/ui/progress"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 interface TimeSlotGridProps {
   timeSlots: {
     time: string
     available: boolean
-    status: string
+    status: "available" | "limited" | "full" | "unavailable"
     occupancy?: number
+    capacity?: number
+    conflicts?: Array<{
+      id: string
+      name: string
+      startTime: string
+      endTime: string
+    }>
   }[]
   onSelectTimeSlot: (time: string) => void
   requiresLogin?: boolean
@@ -182,7 +190,6 @@ export function TimeSlotGrid({
       </div>
     )
   }
-
   return (
     <div className="flex flex-col h-full w-full">
       <Alert className="flex-shrink-0 mb-4 w-full">
@@ -197,36 +204,163 @@ export function TimeSlotGrid({
       <div className="flex flex-col flex-1 w-full min-h-0">
         <h3 className="text-sm font-medium mb-3 flex-shrink-0">Available Time Slots</h3>
         <div className="flex-1 overflow-y-auto pr-2 w-full">
-          {/* Changed from grouped by hour to a simple responsive grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 w-full">
-            {sortedTimeSlots.map((slot: { time: string; available: boolean; status: string; occupancy?: number }) => (
-              <Button
-                key={`slot-${slot.time}`}
-                variant="outline"
-                size="sm"
-                className={cn(
-                  "justify-center relative h-auto py-3 px-2 text-xs w-full",
-                  slot.status === "available" && "border-green-500 bg-green-50 hover:bg-green-200 text-green-800",
-                  slot.status === "limited" && "border-amber-500 bg-amber-50 hover:bg-amber-200 text-amber-800",
-                  (!slot.available || slot.status === "unavailable") &&
-                    "border-red-300 bg-red-50 text-red-700 opacity-60 cursor-not-allowed hover:bg-red-50",
-                  selectedStartTime === slot.time && "ring-2 ring-offset-2 ring-primary",
-                )}
-                onClick={() => slot.available && handleTimeSlotClick(slot.time)}
-                disabled={!slot.available || requiresLogin}
-              >
-                <div className="flex flex-col items-center w-full">
-                  <span className="font-medium leading-tight">{formatTimeForDisplay(slot.time)}</span>
-                  {slot.occupancy !== undefined && slot.occupancy > 0 && (
-                    <div className="flex items-center mt-0.5 text-xs">
-                      <Users className="h-3 w-3 mr-1" />
-                      <span>{slot.occupancy}</span>
+          <TooltipProvider>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 w-full">
+              {sortedTimeSlots.map((slot) => {
+                const isFullyBooked = slot.status === "full" || slot.status === "unavailable"
+                const isLimited = slot.status === "limited"
+                const isAvailable = slot.status === "available"
+                const hasConflicts = slot.conflicts && slot.conflicts.length > 0
+                
+                const tooltipContent = (
+                  <div className="max-w-xs p-2">
+                    <div className="font-medium mb-2">{formatTimeForDisplay(slot.time)}</div>
+                    
+                    <div className="space-y-1 text-sm">
+                      <div className="flex items-center gap-2">
+                        <span>Status:</span>
+                        <Badge 
+                          variant={
+                            isAvailable ? "default" : 
+                            isLimited ? "secondary" : 
+                            "destructive"
+                          }
+                          className="text-xs"
+                        >
+                          {slot.status.charAt(0).toUpperCase() + slot.status.slice(1)}
+                        </Badge>
+                      </div>
+                      
+                      {slot.capacity && slot.occupancy !== undefined && (
+                        <div className="flex items-center gap-2">
+                          <Users className="h-3 w-3" />
+                          <span>Occupancy: {slot.occupancy}/{slot.capacity}</span>
+                          <div className="flex-1 ml-2">
+                            <Progress 
+                              value={(slot.occupancy / slot.capacity) * 100} 
+                              className="h-2"
+                            />
+                          </div>
+                        </div>
+                      )}
+                      
+                      {slot.occupancy !== undefined && slot.occupancy > 0 && !slot.capacity && (
+                        <div className="flex items-center gap-2">
+                          <Users className="h-3 w-3" />
+                          <span>Current bookings: {slot.occupancy}</span>
+                        </div>
+                      )}
+                      
+                      {hasConflicts && (
+                        <div className="border-t pt-2 mt-2">
+                          <div className="text-red-600 font-medium mb-1">
+                            {slot.conflicts!.length} Conflict{slot.conflicts!.length > 1 ? 's' : ''}:
+                          </div>
+                          {slot.conflicts!.slice(0, 3).map((conflict: { id: string; name: string; startTime: string; endTime: string }, index: number) => (
+                            <div key={index} className="text-xs text-red-600 pl-2">
+                              • {conflict.name} ({conflict.startTime}-{conflict.endTime})
+                            </div>
+                          ))}
+                          {slot.conflicts!.length > 3 && (
+                            <div className="text-xs text-red-500 pl-2">
+                              ... and {slot.conflicts!.length - 3} more
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      
+                      {isAvailable && (
+                        <div className="text-green-600 text-xs mt-2">
+                          ✓ Available for booking
+                        </div>
+                      )}
+                      
+                      {isLimited && (
+                        <div className="text-amber-600 text-xs mt-2">
+                          ⚠ Limited availability
+                        </div>
+                      )}
+                      
+                      {isFullyBooked && (
+                        <div className="text-red-600 text-xs mt-2">
+                          ✗ Fully booked
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              </Button>
-            ))}
-          </div>
+                  </div>
+                )
+                
+                return (
+                  <div key={`slot-${slot.time}`} className="relative">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className={cn(
+                            "justify-center relative h-auto py-3 px-2 text-xs w-full",
+                            isAvailable && "border-green-500 bg-green-50 hover:bg-green-200 text-green-800",
+                            isLimited && "border-amber-500 bg-amber-50 hover:bg-amber-200 text-amber-800",
+                            isFullyBooked && "border-red-300 bg-red-50 text-red-700 opacity-60 cursor-not-allowed hover:bg-red-50",
+                            selectedStartTime === slot.time && "ring-2 ring-offset-2 ring-primary",
+                          )}
+                          onClick={() => slot.available && handleTimeSlotClick(slot.time)}
+                          disabled={!slot.available || requiresLogin}
+                        >
+                          <div className="flex flex-col items-center w-full">
+                            <div className="flex items-center gap-1">
+                              <span className="font-medium leading-tight">{formatTimeForDisplay(slot.time)}</span>
+                              {isAvailable && <CheckCircle className="h-3 w-3 text-green-600" />}
+                              {isLimited && <AlertTriangle className="h-3 w-3 text-amber-600" />}
+                              {isFullyBooked && <AlertCircle className="h-3 w-3 text-red-600" />}
+                            </div>
+                            
+                            {slot.capacity && slot.occupancy !== undefined && (
+                              <div className="flex items-center mt-0.5 text-xs">
+                                <Users className="h-3 w-3 mr-1" />
+                                <span>{slot.occupancy}/{slot.capacity}</span>
+                              </div>
+                            )}
+                            
+                            {slot.occupancy !== undefined && slot.occupancy > 0 && !slot.capacity && (
+                              <div className="flex items-center mt-0.5 text-xs">
+                                <Users className="h-3 w-3 mr-1" />
+                                <span>{slot.occupancy}</span>
+                              </div>
+                            )}
+                            
+                            {hasConflicts && (
+                              <Badge variant="destructive" className="text-xs mt-1">
+                                {slot.conflicts!.length} conflict{slot.conflicts!.length > 1 ? 's' : ''}
+                              </Badge>
+                            )}
+                          </div>
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" align="center">
+                        {tooltipContent}
+                      </TooltipContent>
+                    </Tooltip>
+                    
+                    {selectedStartTime === slot.time && hasConflicts && (
+                      <div className="absolute top-full left-0 right-0 mt-1 z-10">
+                        <Card className="p-2 bg-red-50 border-red-200">
+                          <CardContent className="p-0">
+                            <p className="text-xs text-red-700 font-medium mb-1">Conflicts:</p>
+                            {slot.conflicts!.map((conflict: { id: string; name: string; startTime: string; endTime: string }, index: number) => (
+                              <p key={index} className="text-xs text-red-600">
+                                {conflict.name} ({conflict.startTime}-{conflict.endTime})
+                              </p>
+                            ))}
+                          </CardContent>
+                        </Card>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </TooltipProvider>
         </div>
       </div>
 

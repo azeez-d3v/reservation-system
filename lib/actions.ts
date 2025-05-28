@@ -19,8 +19,86 @@ import {
   updateUserStatus,
   deleteUser,
   getStatistics,
-  getAvailableTimeSlots
+  getAvailableTimeSlots,
+  getAlternativeDates,
+  getEnhancedTimeSlotAvailability,
+  validateTimeSlotForReservation
 } from "./firestore"
+import { 
+  validateReservationRequest, 
+  checkTimeSlotAvailability,
+  validateTimeSlotForDate,
+  type ValidationResult,
+  type TimeSlotValidation
+} from "./reservation-validator"
+
+// Enhanced validation exports for UI components
+export { type ValidationResult, type TimeSlotValidation }
+
+// Real-time availability validation for UI components
+export async function getEnhancedAvailability(date: Date) {
+  try {
+    return await getEnhancedTimeSlotAvailability(date)
+  } catch (error) {
+    console.error("Error fetching enhanced availability:", error)
+    return {
+      timeSlots: [],
+      totalSlots: 0,
+      availableSlots: 0,
+      fullyBookedSlots: 0,
+      partiallyBookedSlots: 0,
+      systemSettings: {} as SystemSettings
+    }
+  }
+}
+
+// Enhanced time slot validation for form feedback
+export async function validateTimeSlot(date: Date, startTime: string, endTime: string, excludeReservationId?: string) {
+  try {
+    return await validateTimeSlotForReservation(date, startTime, endTime, excludeReservationId)
+  } catch (error) {
+    console.error("Error validating time slot:", error)
+    return {
+      isValid: false,
+      canProceed: false,
+      errors: ["Unable to validate time slot"],
+      warnings: [],
+      conflictDetails: {
+        overlappingReservations: [],
+        totalConflicts: 0,
+        worstOccupancy: 0,
+        maxCapacity: 1,
+        allowOverlapping: false
+      },
+      recommendedAlternatives: []
+    }
+  }
+}
+
+// Enhanced validation for all time slots on a date
+export async function getTimeSlotValidations(date: Date, timeSlotInterval: number = 30): Promise<TimeSlotValidation[]> {
+  try {
+    return await validateTimeSlotForDate(date, timeSlotInterval)
+  } catch (error) {
+    console.error("Error getting time slot validations:", error)
+    return []
+  }
+}
+
+// Quick availability check for a specific time range
+export async function quickAvailabilityCheck(date: Date, startTime: string, endTime: string): Promise<ValidationResult> {
+  try {
+    return await checkTimeSlotAvailability(date, startTime, endTime)
+  } catch (error) {
+    console.error("Error in quick availability check:", error)
+    return {
+      isValid: false,
+      errors: ["Unable to check availability"],
+      warnings: [],
+      availabilityStatus: 'unavailable'
+    }
+  }
+}
 
 // Reservation Actions
 export async function submitReservation(request: ReservationRequest) {
@@ -29,6 +107,24 @@ export async function submitReservation(request: ReservationRequest) {
       ...request,
       date: request.date.toString()  // Convert date to string for logging
     }, null, 2))
+    
+    // Validate the reservation request comprehensively
+    const validationResult = await validateReservationRequest(request)
+    
+    if (!validationResult.isValid) {
+      console.warn("Reservation validation failed:", validationResult.errors)
+      return {
+        success: false,
+        message: "Validation failed",
+        errors: validationResult.errors,
+        warnings: validationResult.warnings
+      }
+    }
+    
+    // Log warnings if any
+    if (validationResult.warnings && validationResult.warnings.length > 0) {
+      console.log("Reservation warnings:", validationResult.warnings)
+    }
     
     const reservationId = await createReservation(request)
     console.log("Reservation created with ID:", reservationId)
@@ -39,7 +135,8 @@ export async function submitReservation(request: ReservationRequest) {
     return { 
       success: true, 
       message: "Reservation submitted successfully", 
-      reservationId 
+      reservationId,
+      warnings: validationResult.warnings
     }
   } catch (error) {
     console.error("Error submitting reservation:", error)
@@ -677,5 +774,125 @@ export async function getUserStats(userId: string) {
       rejectedReservations: 0,
       totalHours: 0
     }
+  }
+}
+
+// Alternative Dates Action
+const alternativeDatesCache = new Map<string, any>()
+const CACHE_DURATION = 60000 // 1 minute cache
+
+export async function fetchAlternativeDates(
+  requestedDate: string,
+  startTime: string,
+  endTime: string,
+  maxSuggestions: number = 5
+) {
+  // Create cache key
+  const cacheKey = `${requestedDate}-${startTime}-${endTime}-${maxSuggestions}`
+  
+  try {
+    const date = new Date(requestedDate)
+    
+    // Validate the input date
+    if (isNaN(date.getTime())) {
+      return {
+        success: false,
+        error: "Invalid date provided",
+        alternatives: []
+      }
+    }
+    
+    const cachedResult = alternativeDatesCache.get(cacheKey)
+    
+    // Return cached result if it exists and is not expired
+    if (cachedResult && Date.now() - cachedResult.timestamp < CACHE_DURATION) {
+      console.log("Returning cached alternative dates for:", { requestedDate, startTime, endTime })
+      return cachedResult.data
+    }
+    
+    console.log("Fetching alternative dates for:", {
+      requestedDate,
+      startTime,
+      endTime,
+      maxSuggestions
+    })
+    
+    const alternatives = await getAlternativeDates(
+      date,
+      startTime,
+      endTime,
+      maxSuggestions
+    )
+    
+    console.log("Found alternative dates:", alternatives.length)
+    
+    // Format the alternatives with more details for the UI
+    const formattedAlternatives = alternatives.map(date => {
+      // Get the day of the week as a string (e.g., "Monday")
+      const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'long' })
+      
+      // Get the formatted date (e.g., "January 15, 2024")
+      const formattedDate = date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      })
+      
+      // Get "Today", "Tomorrow", or "" depending on how soon the date is
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      
+      const tomorrow = new Date(today)
+      tomorrow.setDate(tomorrow.getDate() + 1)
+      
+      let relative = ""
+      if (date.getTime() === today.getTime()) {
+        relative = "Today"
+      } else if (date.getTime() === tomorrow.getTime()) {
+        relative = "Tomorrow"
+      }
+      
+      // Create a nice display format
+      const displayDate = relative ? `${relative} (${dayOfWeek})` : `${dayOfWeek}, ${formattedDate}`
+      
+      return {
+        date: date.toISOString().split('T')[0],
+        displayDate,
+        dayOfWeek,
+        relative,
+        formattedDate
+      }
+    })
+    
+    const result = {
+      success: true,
+      alternatives: formattedAlternatives,
+      message: formattedAlternatives.length > 0 
+        ? `Found ${formattedAlternatives.length} alternative date${formattedAlternatives.length > 1 ? 's' : ''}`
+        : "No alternative dates found in the next 2 weeks"
+    }
+    
+    // Cache the result
+    alternativeDatesCache.set(cacheKey, {
+      data: result,
+      timestamp: Date.now()
+    })
+    
+    return result
+  } catch (error) {
+    console.error("Error fetching alternative dates:", error)
+    const errorResult = {
+      success: false,
+      error: "Failed to fetch alternative dates",
+      alternatives: []
+    }
+    
+    // Cache error result for a shorter duration
+    alternativeDatesCache.set(cacheKey, {
+      data: errorResult,
+      timestamp: Date.now()
+    })
+    
+    return errorResult
   }
 }

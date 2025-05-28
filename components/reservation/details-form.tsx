@@ -75,7 +75,6 @@ export function ReservationDetailsForm({ selectedDate, startTime, endTime, onBac
       return "—";
     }
   })()
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
@@ -95,13 +94,43 @@ export function ReservationDetailsForm({ selectedDate, startTime, endTime, onBac
       })
 
       if (!result.success) {
+        // Show validation errors in toast
+        if (result.errors && result.errors.length > 0) {
+          toast({
+            title: "Validation Failed",
+            description: result.errors.join(". "),
+            variant: "destructive",
+          })
+          
+          // Show warnings separately if any
+          if (result.warnings && result.warnings.length > 0) {
+            setTimeout(() => {
+              toast({
+                title: "Warnings",
+                description: result.warnings.join(". "),
+                variant: "default",
+              })
+            }, 2000)
+          }
+          return
+        }
+        
         throw new Error(result.message)
       }
 
-      toast({
-        title: "Reservation Request Submitted",
-        description: "Your request has been submitted and is pending approval.",
-      })
+      // Show warnings if any, even on success
+      if (result.warnings && result.warnings.length > 0) {
+        toast({
+          title: "Reservation Submitted with Warnings",
+          description: `Your request has been submitted but note: ${result.warnings.join(". ")}`,
+          variant: "default",
+        })
+      } else {
+        toast({
+          title: "Reservation Request Submitted",
+          description: "Your request has been submitted and is pending approval.",
+        })
+      }
 
       router.push("/dashboard")
     } catch (error) {

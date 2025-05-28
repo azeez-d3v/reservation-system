@@ -12,7 +12,9 @@ import {
   getDoc,
   setDoc,
   writeBatch,
-  limit
+  limit,
+  runTransaction,
+  Transaction
 } from "firebase/firestore"
 import { db } from "./firebase"
 import type { 
@@ -35,39 +37,207 @@ const BLACKOUT_DATES_COLLECTION = "blackoutDates"
 
 export async function createReservation(data: ReservationRequest): Promise<string> {
   try {
-    console.log("Creating reservation with data:", JSON.stringify({
-      ...data,
-      date: data.date.toString()  // Convert date to string for logging
-    }, null, 2))
+    console.log("Creating reservation with data:", data)
     
-    // Create a more server-compatible version of the reservation data
-    const reservationData = {
-      ...data,
-      // Use email as userId for consistency with Firestore rules
-      userId: data.email || data.userId,
-      status: "pending",
-      createdAt: new Date(),
-      date: Timestamp.fromDate(data.date),
+    // Enhanced pre-creation validation with real-time availability check
+    const validationResult = await validateReservationAvailability(data)
+    if (!validationResult.isValid) {
+      throw new Error(`Reservation validation failed: ${validationResult.errors.join(', ')}`)
     }
+
+    // Use Firestore transaction for atomic operation
+    const reservationId = doc(collection(db, RESERVATIONS_COLLECTION)).id
     
-    console.log("Prepared reservation data for Firestore:", 
-      JSON.stringify({...reservationData, createdAt: reservationData.createdAt.toString()}, null, 2)
-    )
+    const result = await runTransaction(db, async (transaction) => {
+      // Re-check availability within transaction to prevent race conditions
+      const realtimeValidation = await validateReservationAvailabilityInTransaction(transaction, data)
+      if (!realtimeValidation.isValid) {
+        throw new Error(`Reservation no longer available: ${realtimeValidation.errors.join(', ')}`)
+      }
+      
+      const reservationData = {
+        ...data,
+        id: reservationId,
+        status: "pending" as const,
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+        validationMetadata: {
+          currentOccupancy: realtimeValidation.currentOccupancy,
+          maxCapacity: realtimeValidation.maxCapacity,
+          availabilityStatus: realtimeValidation.availabilityStatus,
+          conflictingReservationIds: realtimeValidation.conflictingReservations.map(r => r.id)
+        }
+      }
+      
+      const reservationRef = doc(db, RESERVATIONS_COLLECTION, reservationId)
+      transaction.set(reservationRef, reservationData)
+      
+      return reservationId
+    })
     
-    // Use client SDK with updated Firestore rules that allow operations
-    const docRef = await addDoc(collection(db, RESERVATIONS_COLLECTION), reservationData)
-    console.log("Reservation created successfully with client SDK ID:", docRef.id)
-    return docRef.id
+    console.log("Reservation created successfully with ID:", result)
+    return result
+    
   } catch (error) {
     console.error("Error creating reservation:", error)
-    
-    // Log more details about the error
     if (error instanceof Error) {
-      console.error("Error message:", error.message)
-      console.error("Error stack:", error.stack)
+      throw error
+    }
+    throw new Error("Failed to create reservation due to an unexpected error")
+  }
+}
+
+// Enhanced validation function for real-time availability checking
+async function validateReservationAvailability(data: ReservationRequest): Promise<{
+  isValid: boolean
+  errors: string[]
+  warnings: string[]
+  currentOccupancy: number
+  maxCapacity: number
+  availabilityStatus: string
+  conflictingReservations: Reservation[]
+}> {
+  try {
+    const [systemSettings, timeSlotSettings, existingReservations] = await Promise.all([
+      getSystemSettings(),
+      getTimeSlotSettings(),
+      getReservationsForDate(data.date)
+    ])
+    
+    const errors: string[] = []
+    const warnings: string[] = []
+    
+    // Check basic date/time validity
+    if (data.date < new Date()) {
+      errors.push("Cannot create reservations for past dates")
     }
     
-    throw new Error(`Failed to create reservation: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    // Check if date is enabled for reservations
+    const dayOfWeek = data.date.getDay()
+    const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
+    const daySchedule = timeSlotSettings.businessHours[dayNames[dayOfWeek]]
+    
+    if (!daySchedule?.enabled) {
+      errors.push("Selected date is not available for reservations")
+    }
+    
+    // Calculate time overlap conflicts with precise minute-level accuracy
+    const requestStartMinutes = timeToMinutes(data.startTime)
+    const requestEndMinutes = timeToMinutes(data.endTime)
+    
+    const conflictingReservations = existingReservations.filter(reservation => {
+      if (reservation.status === "cancelled" || reservation.status === "rejected") {
+        return false
+      }
+      
+      const reservationStartMinutes = timeToMinutes(reservation.startTime)
+      const reservationEndMinutes = timeToMinutes(reservation.endTime)
+      
+      // Check for any time overlap using precise interval comparison
+      return (requestStartMinutes < reservationEndMinutes && requestEndMinutes > reservationStartMinutes)
+    })
+    
+    const currentOccupancy = conflictingReservations.length
+    const maxCapacity = systemSettings.maxOverlappingReservations || 1
+    
+    let availabilityStatus = "available"
+    
+    // Apply business rules for availability
+    if (!systemSettings.allowOverlapping && currentOccupancy > 0) {
+      availabilityStatus = "unavailable"
+      errors.push(`Time slot is already reserved. Overlapping reservations are not allowed.`)
+    } else if (systemSettings.allowOverlapping && currentOccupancy >= maxCapacity) {
+      availabilityStatus = "full"
+      errors.push(`Time slot is fully booked (${currentOccupancy}/${maxCapacity} reservations)`)
+    } else if (currentOccupancy > 0) {
+      availabilityStatus = "limited"
+      warnings.push(`Time slot has ${currentOccupancy} existing reservation(s)`)
+    }
+    
+    return {
+      isValid: errors.length === 0,
+      errors,
+      warnings,
+      currentOccupancy,
+      maxCapacity,
+      availabilityStatus,
+      conflictingReservations
+    }
+    
+  } catch (error) {
+    console.error("Error validating reservation availability:", error)
+    return {
+      isValid: false,
+      errors: ["Unable to validate reservation availability"],
+      warnings: [],
+      currentOccupancy: 0,
+      maxCapacity: 1,
+      availabilityStatus: "unavailable",
+      conflictingReservations: []
+    }
+  }
+}
+
+// Transaction-safe validation to prevent race conditions
+async function validateReservationAvailabilityInTransaction(
+  transaction: Transaction,
+  data: ReservationRequest
+): Promise<{
+  isValid: boolean
+  errors: string[]
+  currentOccupancy: number
+  maxCapacity: number
+  availabilityStatus: string
+  conflictingReservations: Reservation[]
+}> {
+  // Get system settings within transaction
+  const settingsRef = doc(db, SYSTEM_SETTINGS_COLLECTION, "default")
+  const settingsDoc = await transaction.get(settingsRef)
+  
+  const systemSettings = settingsDoc.exists() ? settingsDoc.data() as SystemSettings : getDefaultSystemSettings()
+  
+  // Get existing reservations for the date - we need to do this outside transaction
+  // since Firestore transactions can't perform queries, only single document reads
+  const existingReservations = await getReservationsForDate(data.date)
+  
+  // Perform the same conflict detection as before
+  const requestStartMinutes = timeToMinutes(data.startTime)
+  const requestEndMinutes = timeToMinutes(data.endTime)
+  
+  const conflictingReservations = existingReservations.filter(reservation => {
+    if (reservation.status === "cancelled" || reservation.status === "rejected") {
+      return false
+    }
+    
+    const reservationStartMinutes = timeToMinutes(reservation.startTime)
+    const reservationEndMinutes = timeToMinutes(reservation.endTime)
+    
+    return (requestStartMinutes < reservationEndMinutes && requestEndMinutes > reservationStartMinutes)
+  })
+  
+  const currentOccupancy = conflictingReservations.length
+  const maxCapacity = systemSettings.maxOverlappingReservations || 1
+  const errors: string[] = []
+  
+  let availabilityStatus = "available"
+  
+  if (!systemSettings.allowOverlapping && currentOccupancy > 0) {
+    availabilityStatus = "unavailable"
+    errors.push("Time slot is no longer available")
+  } else if (systemSettings.allowOverlapping && currentOccupancy >= maxCapacity) {
+    availabilityStatus = "full"
+    errors.push("Time slot is now fully booked")
+  } else if (currentOccupancy > 0) {
+    availabilityStatus = "limited"
+  }
+  
+  return {
+    isValid: errors.length === 0,
+    errors,
+    currentOccupancy,
+    maxCapacity,
+    availabilityStatus,
+    conflictingReservations
   }
 }
 
@@ -277,6 +447,30 @@ export async function getTimeSlotSettings(): Promise<TimeSlotSettings> {
   }
 }
 
+// Internal function to get the raw time slot settings document
+export async function getTimeSlotSettingsDocument(): Promise<TimeSlotSettings> {
+  try {
+    const docRef = doc(db, TIME_SLOT_SETTINGS_COLLECTION, "main")
+    const docSnap = await getDoc(docRef)
+    
+    if (docSnap.exists()) {
+      const data = docSnap.data()
+      return {
+        ...data,
+        blackoutDates: data.blackoutDates?.map((bd: any) => ({
+          ...bd,
+          date: bd.date.toDate()
+        })) || []
+      } as TimeSlotSettings
+    } else {
+      return getDefaultTimeSlotSettings()
+    }
+  } catch (error) {
+    console.error("Error fetching time slot settings document:", error)
+    return getDefaultTimeSlotSettings()
+  }
+}
+
 export async function updateTimeSlotSettings(settings: Partial<TimeSlotSettings>): Promise<void> {
   try {
     const docRef = doc(db, TIME_SLOT_SETTINGS_COLLECTION, "main")
@@ -311,6 +505,17 @@ export async function updateTimeSlotSettings(settings: Partial<TimeSlotSettings>
   } catch (error) {
     console.error("Error updating time slot settings:", error)
     throw new Error("Failed to update time slot settings")
+  }
+}
+
+// Function to get blackout dates
+export async function getBlackoutDates(): Promise<BlackoutDate[]> {
+  try {
+    const timeSlotSettings = await getTimeSlotSettings()
+    return timeSlotSettings.blackoutDates || []
+  } catch (error) {
+    console.error("Error fetching blackout dates:", error)
+    return []
   }
 }
 
@@ -629,10 +834,10 @@ export async function getUserStats(userId: string): Promise<any> {
   }
 }
 
-// Available Time Slots Function
+// Available Time Slots Function with Enhanced Validation
 export async function getAvailableTimeSlots(
   date: Date,
-): Promise<{ time: string; available: boolean; status: string; occupancy?: number }[]> {
+): Promise<{ time: string; available: boolean; status: string; occupancy?: number; capacity?: number; conflicts?: Reservation[] }[]> {
   try {
     const [systemSettings, timeSlotSettings] = await Promise.all([
       getSystemSettings(),
@@ -658,8 +863,16 @@ export async function getAvailableTimeSlots(
     }
     
     // Generate time slots based on day schedule
-    const allTimeSlots: { time: string; available: boolean; status: string; occupancy?: number }[] = []
+    const allTimeSlots: { 
+      time: string, 
+      available: boolean, 
+      status: string, 
+      occupancy?: number, 
+      capacity?: number,
+      conflicts?: Reservation[]
+    }[] = []
     const interval = timeSlotSettings.timeSlotInterval
+    const maxCapacity = systemSettings.maxOverlappingReservations || 1
     
     daySchedule.timeSlots.forEach(slot => {
       const startMinutes = timeToMinutes(slot.start)
@@ -674,7 +887,9 @@ export async function getAvailableTimeSlots(
           time: timeString,
           available: true,
           status: "available",
-          occupancy: 0
+          occupancy: 0,
+          capacity: maxCapacity,
+          conflicts: []
         })
       }
     })
@@ -682,8 +897,8 @@ export async function getAvailableTimeSlots(
     // Get existing reservations for the date
     const existingReservations = await getReservationsForDate(date)
     
-    // Calculate occupancy for each time slot
-    const timeSlotOccupancy: Record<string, number> = {}
+    // Calculate precise occupancy and conflicts for each time slot
+    const timeSlotOccupancy: Record<string, { count: number; reservations: Reservation[] }> = {}
     
     existingReservations.forEach(reservation => {
       const startMinutes = timeToMinutes(reservation.startTime)
@@ -692,25 +907,41 @@ export async function getAvailableTimeSlots(
       allTimeSlots.forEach(slot => {
         const slotMinutes = timeToMinutes(slot.time)
         
+        // Check if this time slot overlaps with the reservation
         if (slotMinutes >= startMinutes && slotMinutes < endMinutes) {
-          timeSlotOccupancy[slot.time] = (timeSlotOccupancy[slot.time] || 0) + 1
+          if (!timeSlotOccupancy[slot.time]) {
+            timeSlotOccupancy[slot.time] = { count: 0, reservations: [] }
+          }
+          timeSlotOccupancy[slot.time].count += 1
+          timeSlotOccupancy[slot.time].reservations.push(reservation)
         }
       })
     })
     
-    // Update slot availability based on occupancy
+    // Update slot availability based on precise occupancy calculations
     allTimeSlots.forEach(slot => {
-      const occupancy = timeSlotOccupancy[slot.time] || 0
-      slot.occupancy = occupancy
+      const occupancyData = timeSlotOccupancy[slot.time]
+      const occupancy = occupancyData?.count || 0
+      const conflicts = occupancyData?.reservations || []
       
+      slot.occupancy = occupancy
+      slot.conflicts = conflicts
+      
+      // Determine availability status based on system settings
       if (occupancy === 0) {
         slot.status = "available"
         slot.available = true
-      } else if (occupancy < systemSettings.maxOverlappingReservations) {
-        slot.status = "limited"
-        slot.available = systemSettings.allowOverlapping
-      } else {
+      } else if (!systemSettings.allowOverlapping) {
+        // If overlapping is not allowed and there's any occupancy, it's unavailable
         slot.status = "unavailable"
+        slot.available = false
+      } else if (occupancy < maxCapacity) {
+        // If overlapping is allowed and under capacity, it's limited
+        slot.status = "limited"
+        slot.available = true
+      } else {
+        // If at or over capacity, it's full/unavailable
+        slot.status = "full"
         slot.available = false
       }
     })
@@ -720,6 +951,72 @@ export async function getAvailableTimeSlots(
   } catch (error) {
     console.error("Error fetching available time slots:", error)
     throw new Error("Failed to fetch available time slots")
+  }
+}
+
+// Enhanced function to get detailed availability for a date range
+export async function getDetailedAvailability(
+  startDate: Date,
+  endDate: Date
+): Promise<{
+  [dateKey: string]: {
+    date: Date;
+    isAvailable: boolean;
+    totalSlots: number;
+    availableSlots: number;
+    limitedSlots: number;
+    unavailableSlots: number;
+    occupancyRate: number;
+    timeSlots: Array<{
+      time: string;
+      available: boolean;
+      status: string;
+      occupancy: number;
+      capacity: number;
+    }>;
+  }
+}> {
+  try {
+    const result: any = {}
+    const current = new Date(startDate)
+    
+    while (current <= endDate) {
+      const dateKey = current.toISOString().split('T')[0]
+      const timeSlots = await getAvailableTimeSlots(current)
+      
+      const totalSlots = timeSlots.length
+      const availableSlots = timeSlots.filter(slot => slot.status === 'available').length
+      const limitedSlots = timeSlots.filter(slot => slot.status === 'limited').length
+      const unavailableSlots = timeSlots.filter(slot => ['unavailable', 'full'].includes(slot.status)).length
+      
+      const occupancyRate = totalSlots > 0 
+        ? ((limitedSlots + unavailableSlots) / totalSlots) * 100 
+        : 0
+      
+      result[dateKey] = {
+        date: new Date(current),
+        isAvailable: availableSlots > 0 || limitedSlots > 0,
+        totalSlots,
+        availableSlots,
+        limitedSlots,
+        unavailableSlots,
+        occupancyRate,
+        timeSlots: timeSlots.map(slot => ({
+          time: slot.time,
+          available: slot.available,
+          status: slot.status,
+          occupancy: slot.occupancy || 0,
+          capacity: slot.capacity || 1
+        }))
+      }
+      
+      current.setDate(current.getDate() + 1)
+    }
+    
+    return result
+  } catch (error) {
+    console.error("Error getting detailed availability:", error)
+    return {}
   }
 }
 
@@ -877,4 +1174,426 @@ export async function getStatistics(): Promise<any> {
     console.error("Error fetching statistics:", error)
     throw new Error("Failed to fetch statistics")
   }
+}
+
+/**
+ * Get suggested alternative dates when requested date is not available
+ * 
+ * Enhanced version with business rules and operational hours support
+ */
+export async function getAlternativeDates(
+  requestedDate: Date,
+  startTime: string,
+  endTime: string,
+  maxSuggestions: number = 5
+): Promise<Date[]> {
+  try {
+    const alternatives: Date[] = []
+    const maxDaysToCheck = 14 // Check next 2 weeks
+    
+    // Fetch time slot settings to check operational days
+    const timeSlotSettings = await getTimeSlotSettingsDocument()
+    const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
+    
+    // Start checking from the day after the requested date
+    const checkDate = new Date(requestedDate)
+    checkDate.setDate(checkDate.getDate() + 1)
+    
+    // Get any blackout dates
+    const blackoutDates = await getBlackoutDates()
+    const blackoutDatesSet = new Set(
+      blackoutDates.map(bd => new Date(bd.date).toISOString().split('T')[0])
+    )
+    
+    // Loop through days to check
+    for (let i = 0; i < maxDaysToCheck && alternatives.length < maxSuggestions; i++) {
+      const currentDate = new Date(checkDate)
+      currentDate.setDate(currentDate.getDate() + i)
+      
+      // Skip blackout dates
+      const currentDateString = currentDate.toISOString().split('T')[0]
+      if (blackoutDatesSet.has(currentDateString)) {
+        continue
+      }
+      
+      // Skip non-operational days based on settings
+      const dayOfWeek = currentDate.getDay()
+      const dayName = dayNames[dayOfWeek]
+      
+      // If we have time slot settings, check if this day is operational
+      if (timeSlotSettings?.businessHours) {
+        const daySchedule = timeSlotSettings.businessHours[dayName]
+        if (!daySchedule || !daySchedule.enabled || daySchedule.timeSlots.length === 0) {
+          continue // Skip days that are not operational
+        }
+      } else {
+        // Fallback: Skip weekends if time slot settings not available
+        if (dayOfWeek === 0 || dayOfWeek === 6) {
+          continue
+        }
+      }
+      
+      try {
+        // Check if this date has availability for the requested time slot
+        const timeSlots = await getAvailableTimeSlots(currentDate)
+        
+        // Check for exact match with requested start time
+        const requestedSlot = timeSlots.find(slot => slot.time === startTime)
+        
+        if (requestedSlot && requestedSlot.available) {
+          // Also check if we can fit the entire reservation (start to end time)
+          let canFitEntireReservation = true
+          
+          // If end time is specified, verify all slots between start and end are available
+          if (endTime && endTime !== startTime) {
+            // Find indices of start and end slots
+            const startIndex = timeSlots.findIndex(slot => slot.time === startTime)
+            const endIndex = timeSlots.findIndex(slot => slot.time === endTime || slot.time > endTime)
+            
+            // Check all slots in between
+            if (startIndex !== -1 && endIndex !== -1) {
+              for (let slotIndex = startIndex + 1; slotIndex < endIndex; slotIndex++) {
+                if (!timeSlots[slotIndex].available) {
+                  canFitEntireReservation = false
+                  break
+                }
+              }
+            }
+          }
+          
+          if (canFitEntireReservation) {
+            alternatives.push(currentDate)
+          }
+        }
+      } catch (error) {
+        console.warn(`Error checking availability for ${currentDate.toDateString()}:`, error)
+        continue
+      }
+    }
+    
+    return alternatives
+  } catch (error) {
+    console.error("Error getting alternative dates:", error)
+    return []
+  }
+}
+
+// Enhanced real-time availability tracking with atomic operations
+export async function getEnhancedTimeSlotAvailability(
+  date: Date
+): Promise<{
+  timeSlots: Array<{
+    time: string
+    available: boolean
+    status: "available" | "limited" | "full" | "unavailable"
+    occupancy: number
+    capacity: number
+    conflicts: Reservation[]
+    reservationAllowed: boolean
+    warningMessage?: string
+  }>
+  totalSlots: number
+  availableSlots: number
+  fullyBookedSlots: number
+  partiallyBookedSlots: number
+  systemSettings: SystemSettings
+}> {
+  try {
+    const [systemSettings, timeSlotSettings, existingReservations] = await Promise.all([
+      getSystemSettings(),
+      getTimeSlotSettings(),
+      getReservationsForDate(date)
+    ])
+    
+    // Check if date is enabled for reservations
+    const dayOfWeek = date.getDay()
+    const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
+    const daySchedule = timeSlotSettings.businessHours[dayNames[dayOfWeek]]
+    
+    if (!daySchedule?.enabled) {
+      return {
+        timeSlots: [],
+        totalSlots: 0,
+        availableSlots: 0,
+        fullyBookedSlots: 0,
+        partiallyBookedSlots: 0,
+        systemSettings
+      }
+    }
+    
+    // Check if date is a blackout date
+    const isBlackoutDate = timeSlotSettings.blackoutDates.some(
+      bd => bd.date.toDateString() === date.toDateString()
+    )
+    
+    if (isBlackoutDate) {
+      return {
+        timeSlots: [],
+        totalSlots: 0,
+        availableSlots: 0,
+        fullyBookedSlots: 0,
+        partiallyBookedSlots: 0,
+        systemSettings
+      }
+    }
+    
+    const allTimeSlots: Array<{
+      time: string
+      available: boolean
+      status: "available" | "limited" | "full" | "unavailable"
+      occupancy: number
+      capacity: number
+      conflicts: Reservation[]
+      reservationAllowed: boolean
+      warningMessage?: string
+    }> = []
+    
+    const interval = timeSlotSettings.timeSlotInterval || 30
+    const maxCapacity = systemSettings.maxOverlappingReservations || 1
+    
+    // Generate all time slots
+    daySchedule.timeSlots.forEach(slot => {
+      const startMinutes = timeToMinutes(slot.start)
+      const endMinutes = timeToMinutes(slot.end)
+      
+      for (let minutes = startMinutes; minutes < endMinutes; minutes += interval) {
+        const timeString = minutesToTimeString(minutes)
+        
+        // Find overlapping reservations for this exact time slot
+        const conflictingReservations = existingReservations.filter(reservation => {
+          if (reservation.status === "cancelled" || reservation.status === "rejected") {
+            return false
+          }
+          
+          const reservationStartMinutes = timeToMinutes(reservation.startTime)
+          const reservationEndMinutes = timeToMinutes(reservation.endTime)
+          
+          // Check if this time slot overlaps with the reservation
+          return minutes >= reservationStartMinutes && minutes < reservationEndMinutes
+        })
+        
+        const occupancy = conflictingReservations.length
+        let status: "available" | "limited" | "full" | "unavailable" = "available"
+        let available = true
+        let reservationAllowed = true
+        let warningMessage: string | undefined
+        
+        // Determine status based on business rules
+        if (occupancy === 0) {
+          status = "available"
+          available = true
+          reservationAllowed = true
+        } else if (!systemSettings.allowOverlapping) {
+          status = "unavailable"
+          available = false
+          reservationAllowed = false
+          warningMessage = "Overlapping reservations not permitted"
+        } else if (occupancy >= maxCapacity) {
+          status = "full"
+          available = false
+          reservationAllowed = false
+          warningMessage = `Maximum capacity reached (${occupancy}/${maxCapacity})`
+        } else {
+          status = "limited"
+          available = true
+          reservationAllowed = true
+          warningMessage = `${occupancy} of ${maxCapacity} spots taken`
+        }
+        
+        allTimeSlots.push({
+          time: timeString,
+          available,
+          status,
+          occupancy,
+          capacity: maxCapacity,
+          conflicts: conflictingReservations,
+          reservationAllowed,
+          warningMessage
+        })
+      }
+    })
+    
+    // Calculate summary statistics
+    const totalSlots = allTimeSlots.length
+    const availableSlots = allTimeSlots.filter(slot => slot.status === "available").length
+    const fullyBookedSlots = allTimeSlots.filter(slot => slot.status === "full" || slot.status === "unavailable").length
+    const partiallyBookedSlots = allTimeSlots.filter(slot => slot.status === "limited").length
+    
+    return {
+      timeSlots: allTimeSlots.sort((a, b) => a.time.localeCompare(b.time)),
+      totalSlots,
+      availableSlots,
+      fullyBookedSlots,
+      partiallyBookedSlots,
+      systemSettings
+    }
+    
+  } catch (error) {
+    console.error("Error fetching enhanced time slot availability:", error)
+    throw new Error("Failed to fetch time slot availability")
+  }
+}
+
+// Comprehensive slot validation for reservation creation
+export async function validateTimeSlotForReservation(
+  date: Date,
+  startTime: string,
+  endTime: string,
+  excludeReservationId?: string
+): Promise<{
+  isValid: boolean
+  canProceed: boolean
+  errors: string[]
+  warnings: string[]
+  conflictDetails: {
+    overlappingReservations: Reservation[]
+    totalConflicts: number
+    worstOccupancy: number
+    maxCapacity: number
+    allowOverlapping: boolean
+  }
+  recommendedAlternatives: string[]
+}> {
+  try {
+    const [systemSettings, timeSlotSettings] = await Promise.all([
+      getSystemSettings(),
+      getTimeSlotSettings()
+    ])
+    
+    const errors: string[] = []
+    const warnings: string[] = []
+    const recommendedAlternatives: string[] = []
+    
+    // Basic time validation
+    const startMinutes = timeToMinutes(startTime)
+    const endMinutes = timeToMinutes(endTime)
+    
+    if (endMinutes <= startMinutes) {
+      errors.push("End time must be after start time")
+    }
+    
+    // Check operational hours
+    const dayOfWeek = date.getDay()
+    const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
+    const daySchedule = timeSlotSettings.businessHours[dayNames[dayOfWeek]]
+    
+    if (!daySchedule?.enabled) {
+      errors.push("Selected day is not available for reservations")
+    }
+    
+    // Get all affected time slots for the requested duration
+    const affectedSlots: string[] = []
+    const interval = timeSlotSettings.timeSlotInterval || 30
+    
+    for (let minutes = startMinutes; minutes < endMinutes; minutes += interval) {
+      affectedSlots.push(minutesToTimeString(minutes))
+    }
+    
+    // Get existing reservations
+    const existingReservations = await getReservationsForDate(date)
+    const activeReservations = existingReservations.filter(r => 
+      r.status !== "cancelled" && 
+      r.status !== "rejected" && 
+      r.id !== excludeReservationId
+    )
+    
+    // Check conflicts for each affected time slot
+    let worstOccupancy = 0
+    let totalConflicts = 0
+    const allOverlappingReservations: Reservation[] = []
+    
+    affectedSlots.forEach(slotTime => {
+      const slotMinutes = timeToMinutes(slotTime)
+      
+      const slotConflicts = activeReservations.filter(reservation => {
+        const reservationStartMinutes = timeToMinutes(reservation.startTime)
+        const reservationEndMinutes = timeToMinutes(reservation.endTime)
+        
+        return slotMinutes >= reservationStartMinutes && slotMinutes < reservationEndMinutes
+      })
+      
+      if (slotConflicts.length > worstOccupancy) {
+        worstOccupancy = slotConflicts.length
+      }
+      
+      totalConflicts += slotConflicts.length
+      
+      // Add to overall overlapping reservations (avoid duplicates)
+      slotConflicts.forEach(conflict => {
+        if (!allOverlappingReservations.find(r => r.id === conflict.id)) {
+          allOverlappingReservations.push(conflict)
+        }
+      })
+    })
+    
+    const maxCapacity = systemSettings.maxOverlappingReservations || 1
+    
+    // Apply business logic
+    if (!systemSettings.allowOverlapping && worstOccupancy > 0) {
+      errors.push("Time slot conflicts with existing reservations. Overlapping is not allowed.")
+    } else if (systemSettings.allowOverlapping && worstOccupancy >= maxCapacity) {
+      errors.push(`Time slot is fully booked (maximum ${maxCapacity} concurrent reservations allowed)`)
+    } else if (worstOccupancy > 0) {
+      warnings.push(`This reservation will overlap with ${allOverlappingReservations.length} existing reservation(s)`)
+    }
+    
+    // Generate alternatives if there are conflicts
+    if (errors.length > 0) {
+      // Find nearby available slots
+      const availability = await getEnhancedTimeSlotAvailability(date)
+      const availableSlots = availability.timeSlots.filter(slot => slot.reservationAllowed)
+      
+      // Suggest 3 closest available time slots
+      const requestedMinutes = timeToMinutes(startTime)
+      const sortedByDistance = availableSlots
+        .map(slot => ({
+          time: slot.time,
+          distance: Math.abs(timeToMinutes(slot.time) - requestedMinutes)
+        }))
+        .sort((a, b) => a.distance - b.distance)
+        .slice(0, 3)
+        .map(slot => slot.time)
+      
+      recommendedAlternatives.push(...sortedByDistance)
+    }
+    
+    return {
+      isValid: errors.length === 0,
+      canProceed: errors.length === 0,
+      errors,
+      warnings,
+      conflictDetails: {
+        overlappingReservations: allOverlappingReservations,
+        totalConflicts,
+        worstOccupancy,
+        maxCapacity,
+        allowOverlapping: systemSettings.allowOverlapping
+      },
+      recommendedAlternatives
+    }
+    
+  } catch (error) {
+    console.error("Error validating time slot for reservation:", error)
+    return {
+      isValid: false,
+      canProceed: false,
+      errors: ["Unable to validate time slot availability"],
+      warnings: [],
+      conflictDetails: {
+        overlappingReservations: [],
+        totalConflicts: 0,
+        worstOccupancy: 0,
+        maxCapacity: 1,
+        allowOverlapping: false
+      },
+      recommendedAlternatives: []
+    }
+  }
+}
+
+// Helper function to convert minutes to time string
+function minutesToTimeString(minutes: number): string {
+  const hours = Math.floor(minutes / 60)
+  const mins = minutes % 60
+  return `${hours.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}`
 }

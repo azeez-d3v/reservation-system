@@ -21,7 +21,7 @@ import { ChevronLeft, ChevronRight, Clock, Info, CalendarIcon, Users, AlertCircl
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { getPublicAvailability, getSystemSettings } from "@/lib/actions"
+import { getPublicAvailability, getSystemSettings, getEnhancedAvailability } from "@/lib/actions"
 import { TimeSlotGrid } from "@/components/calendar/time-slot-grid"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -46,12 +46,23 @@ export default function HomePage() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [selectedTime, setSelectedTime] = useState<string | null>(null)
   const [selectedDuration, setSelectedDuration] = useState<number>(60)
-  
-  // Data state
+    // Data state
   const [availableDates, setAvailableDates] = useState<string[]>([])
   const [availabilityMap, setAvailabilityMap] = useState<Record<string, string>>({})
   const [timeSlots, setTimeSlots] = useState<
-    { time: string; available: boolean; status: string; occupancy?: number }[]
+    { 
+      time: string; 
+      available: boolean; 
+      status: "available" | "limited" | "full" | "unavailable"; 
+      occupancy?: number;
+      capacity?: number;
+      conflicts?: Array<{
+        id: string;
+        name: string;
+        startTime: string;
+        endTime: string;
+      }>;
+    }[]
   >([])
   const [systemSettings, setSystemSettings] = useState<any>(null)
   
@@ -205,15 +216,15 @@ export default function HomePage() {
     
     const abortController = new AbortController()
     timeSlotsFetchRef.current = abortController
-    
-    const fetchTimeSlots = async () => {
+      const fetchTimeSlots = async () => {
       if (abortController.signal.aborted) return
       
       setIsLoadingTimeSlots(true)
       setError(null)
       
       try {
-        const response = await getPublicAvailability(selectedDate, selectedDate)
+        // Use enhanced availability for better data
+        const response = await getEnhancedAvailability(selectedDate)
         
         if (abortController.signal.aborted) return
 
@@ -236,12 +247,27 @@ export default function HomePage() {
           return timeA[1] - timeB[1]
         })
 
-        const hasOverlaps = sortedSlots.some((slot) => 
+        // Map to expected format for TimeSlotGrid
+        const mappedSlots = sortedSlots.map(slot => ({
+          time: slot.time,
+          available: slot.available,
+          status: slot.status as "available" | "limited" | "full" | "unavailable",
+          occupancy: slot.occupancy,
+          capacity: slot.capacity,
+          conflicts: slot.conflicts?.map(conflict => ({
+            id: conflict.id,
+            name: conflict.name,
+            startTime: conflict.startTime,
+            endTime: conflict.endTime
+          }))
+        }))
+
+        const hasOverlaps = mappedSlots.some((slot) => 
           slot.status === "limited" || (slot.occupancy && slot.occupancy > 0)
         )
 
         setHasOverlappingReservations(hasOverlaps)
-        setTimeSlots(sortedSlots)
+        setTimeSlots(mappedSlots)
       } catch (error) {
         if (!abortController.signal.aborted) {
           console.error("Failed to fetch time slots:", error)
