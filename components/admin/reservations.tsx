@@ -42,8 +42,8 @@ export function AdminReservations() {
     setIsLoading(true)
     try {
       const data = await getReservationList("approved")
-      setReservations(data)
-      setFilteredReservations(data)
+      setReservations(data as Reservation[])
+      setFilteredReservations(data as Reservation[])
     } catch (error) {
       console.error("Failed to fetch reservations:", error)
       toast({
