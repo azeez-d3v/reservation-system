@@ -259,7 +259,7 @@ export default function RequestPage() {
               value="reservation-details" 
               disabled={!selectedStartTime || !selectedDate}
             >
-              Reservation Details
+              Details
             </TabsTrigger>
           </TabsList>
         
