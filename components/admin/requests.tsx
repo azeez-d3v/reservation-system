@@ -5,8 +5,8 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { useToast } from "@/components/ui/use-toast"
-import { getReservationList, approveReservation, cancelReservation } from "@/lib/actions"
-import type { Reservation } from "@/lib/types"
+import { getReservationList, approveReservation, cancelReservation, getSettings } from "@/lib/actions"
+import type { Reservation, SystemSettings } from "@/lib/types"
 import { format } from "date-fns"
 import { AlertCircle, CheckCircle, XCircle, Filter, Search, Clock, Users, Info } from "lucide-react"
 import {
@@ -24,6 +24,13 @@ import { Calendar } from "@/components/ui/calendar"
 import { cn } from "@/lib/utils"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
+// Type for serialized reservations (dates as strings)
+type SerializedReservation = Omit<Reservation, 'date' | 'createdAt' | 'updatedAt'> & {
+  date: string
+  createdAt: string
+  updatedAt?: string
+}
+
 export function AdminRequests() {
   const { toast } = useToast()
   const [pendingRequests, setPendingRequests] = useState<Reservation[]>([])
@@ -33,19 +40,39 @@ export function AdminRequests() {
   const [selectedRequest, setSelectedRequest] = useState<Reservation | null>(null)
   const [showOverlapDialog, setShowOverlapDialog] = useState(false)
   const [overlappingReservations, setOverlappingReservations] = useState<Reservation[]>([])
-
+  const [systemSettings, setSystemSettings] = useState<SystemSettings | null>(null)
   // Filter states
   const [searchTerm, setSearchTerm] = useState("")
   const [filterDate, setFilterDate] = useState<Date | undefined>(undefined)
   const [filterType, setFilterType] = useState<string>("")
 
+  // Helper function to convert serialized reservation to Reservation
+  const convertSerializedReservation = (serialized: SerializedReservation): Reservation => {
+    return {
+      ...serialized,
+      date: new Date(serialized.date),
+      createdAt: new Date(serialized.createdAt),
+      updatedAt: serialized.updatedAt ? new Date(serialized.updatedAt) : new Date(serialized.createdAt)
+    }
+  }
+
   const fetchData = async () => {
     setIsLoading(true)
     try {
-      const [pending, approved] = await Promise.all([getReservationList("pending"), getReservationList("approved")])
+      const [pendingData, approvedData, settings] = await Promise.all([
+        getReservationList("pending"), 
+        getReservationList("approved"),
+        getSettings()
+      ])
+      
+      // Convert serialized data to proper Reservation objects
+      const pending = (pendingData as SerializedReservation[]).map(convertSerializedReservation)
+      const approved = (approvedData as SerializedReservation[]).map(convertSerializedReservation)
+      
       setPendingRequests(pending)
       setFilteredRequests(pending)
       setApprovedReservations(approved)
+      setSystemSettings(settings)
     } catch (error) {
       console.error("Failed to fetch data:", error)
       toast({
@@ -442,12 +469,12 @@ export function AdminRequests() {
                 <div className="text-sm mt-1">{reservation.purpose}</div>
               </div>
             ))}
-          </div>
-
-          <div className="bg-muted/30 p-3 rounded-md mb-4">
+          </div>          <div className="bg-muted/30 p-3 rounded-md mb-4">
             <div className="flex items-center">
               <Info className="h-4 w-4 mr-2 text-blue-500" />
-              <div className="text-sm font-medium">System permits up to 2 concurrent reservations</div>
+              <div className="text-sm font-medium">
+                System permits up to {systemSettings?.maxOverlappingReservations || 2} concurrent reservations
+              </div>
             </div>
             <div className="text-sm text-muted-foreground ml-6 mt-1">
               Based on current overlaps, this would result in a maximum of {overlappingReservations.length + 1}{" "}

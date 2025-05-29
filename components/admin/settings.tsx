@@ -605,9 +605,7 @@ export function AdminSettings() {
                   checked={systemSettings.use12HourFormat !== false} // Default to true if not specified
                   onCheckedChange={(checked) => setSystemSettings({ ...systemSettings, use12HourFormat: checked })}
                 />
-              </div>
-
-              <div className="flex items-center justify-between">
+              </div>              <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label htmlFor="publicCalendar">Public Calendar</Label>
                   <p className="text-sm text-muted-foreground">Make the calendar visible to everyone without login</p>
@@ -617,6 +615,26 @@ export function AdminSettings() {
                   checked={systemSettings.publicCalendar}
                   onCheckedChange={(checked) => setSystemSettings({ ...systemSettings, publicCalendar: checked })}
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="maxConcurrentReservations">Maximum Concurrent Reservations</Label>
+                <Input
+                  id="maxConcurrentReservations"
+                  type="number"
+                  min="1"
+                  max="10"
+                  value={systemSettings.maxOverlappingReservations}
+                  onChange={(e) => 
+                    setSystemSettings({ 
+                      ...systemSettings, 
+                      maxOverlappingReservations: Math.max(1, Number.parseInt(e.target.value) || 1)
+                    })
+                  }
+                />
+                <p className="text-sm text-muted-foreground">
+                  Maximum number of reservations allowed at the same time slot (default: 2)
+                </p>
               </div>
             </CardContent>
             <CardFooter>

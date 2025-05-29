@@ -977,6 +977,8 @@ export async function getDetailedAvailability(
   }
 }> {
   try {
+    const systemSettings = await getSystemSettings()
+    const maxCapacity = systemSettings.maxOverlappingReservations || 2
     const result: any = {}
     const current = new Date(startDate)
     
@@ -1006,7 +1008,7 @@ export async function getDetailedAvailability(
           available: slot.available,
           status: slot.status,
           occupancy: slot.occupancy || 0,
-          capacity: slot.capacity || 1
+          capacity: slot.capacity || maxCapacity
         }))
       }
       
