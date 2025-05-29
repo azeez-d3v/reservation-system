@@ -8,7 +8,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { getReservationList, cancelReservation } from "@/lib/actions"
 import type { Reservation } from "@/lib/types"
 import { format } from "date-fns"
-import { CalendarIcon, Search, Filter, Trash2 } from "lucide-react"
+import { CalendarIcon, Search, Filter, Trash2, Loader2 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -25,13 +25,13 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 
-export function AdminReservations() {
-  const { toast } = useToast()
+export function AdminReservations() {  const { toast } = useToast()
   const [reservations, setReservations] = useState<Reservation[]>([])
   const [filteredReservations, setFilteredReservations] = useState<Reservation[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [reservationToCancel, setReservationToCancel] = useState<Reservation | null>(null)
   const [showCancelDialog, setShowCancelDialog] = useState(false)
+  const [cancellingIds, setCancellingIds] = useState<Set<string>>(new Set())
 
   // Filter states
   const [searchTerm, setSearchTerm] = useState("")
@@ -85,10 +85,10 @@ export function AdminReservations() {
 
     setFilteredReservations(filtered)
   }, [reservations, searchTerm, filterDate, filterType])
-
   const handleCancelReservation = async () => {
     if (!reservationToCancel) return
 
+    setCancellingIds(prev => new Set(prev).add(reservationToCancel.id))
     try {
       await cancelReservation(reservationToCancel.id)
       toast({
@@ -103,6 +103,11 @@ export function AdminReservations() {
         variant: "destructive",
       })
     } finally {
+      setCancellingIds(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(reservationToCancel.id)
+        return newSet
+      })
       setShowCancelDialog(false)
       setReservationToCancel(null)
     }
@@ -235,18 +240,22 @@ export function AdminReservations() {
                     )}
                   </div>
 
-                  <div className="flex items-center justify-end">
-                    <Button
+                  <div className="flex items-center justify-end">                    <Button
                       variant="outline"
                       size="sm"
                       className="text-destructive hover:bg-destructive/10"
+                      disabled={cancellingIds.has(reservation.id)}
                       onClick={() => {
                         setReservationToCancel(reservation)
                         setShowCancelDialog(true)
                       }}
                     >
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      Cancel
+                      {cancellingIds.has(reservation.id) ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="mr-2 h-4 w-4" />
+                      )}
+                      {cancellingIds.has(reservation.id) ? "Cancelling..." : "Cancel"}
                     </Button>
                   </div>
                 </div>
@@ -260,30 +269,38 @@ export function AdminReservations() {
       <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Cancel Reservation</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to cancel this reservation? This action cannot be undone.
-              {reservationToCancel && (
-                <div className="mt-2 p-3 border rounded-md bg-muted/50">
-                  <p>
-                    <strong>{reservationToCancel.name}</strong>
-                  </p>
-                  <p className="text-sm">
-                    {format(new Date(reservationToCancel.date), "PPP")} at {reservationToCancel.startTime} -{" "}
-                    {reservationToCancel.endTime}
-                  </p>
-                  <p className="text-sm">{reservationToCancel.purpose}</p>
-                </div>
-              )}
+            <AlertDialogTitle>Cancel Reservation</AlertDialogTitle>              <AlertDialogDescription asChild>
+              <div>
+                <span>Are you sure you want to cancel this reservation? This action cannot be undone.</span>
+                {reservationToCancel && (
+                  <div className="mt-2 p-3 border rounded-md bg-muted/50">
+                    <div>
+                      <strong>{reservationToCancel.name}</strong>
+                    </div>
+                    <div className="text-sm">
+                      {format(new Date(reservationToCancel.date), "PPP")} at {reservationToCancel.startTime} -{" "}
+                      {reservationToCancel.endTime}
+                    </div>
+                    <div className="text-sm">{reservationToCancel.purpose}</div>
+                  </div>
+                )}
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
+            <AlertDialogCancel>Cancel</AlertDialogCancel>            <AlertDialogAction
               onClick={handleCancelReservation}
+              disabled={reservationToCancel ? cancellingIds.has(reservationToCancel.id) : false}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Yes, Cancel Reservation
+              {reservationToCancel && cancellingIds.has(reservationToCancel.id) ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Cancelling...
+                </>
+              ) : (
+                "Yes, Cancel Reservation"
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

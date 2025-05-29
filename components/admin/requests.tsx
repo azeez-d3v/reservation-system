@@ -8,7 +8,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { getReservationList, approveReservation, rejectReservation, cancelReservation, getSettings } from "@/lib/actions"
 import type { Reservation, SystemSettings } from "@/lib/types"
 import { format } from "date-fns"
-import { AlertCircle, CheckCircle, XCircle, Filter, Search, Clock, Users, Info } from "lucide-react"
+import { AlertCircle, CheckCircle, XCircle, Filter, Search, Clock, Users, Info, Loader2 } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -45,6 +45,10 @@ export function AdminRequests() {
   const [searchTerm, setSearchTerm] = useState("")
   const [filterDate, setFilterDate] = useState<Date | undefined>(undefined)
   const [filterType, setFilterType] = useState<string>("")
+  
+  // Loading states for individual actions
+  const [approvingIds, setApprovingIds] = useState<Set<string>>(new Set())
+  const [rejectingIds, setRejectingIds] = useState<Set<string>>(new Set())
 
   // Helper function to convert serialized reservation to Reservation
   const convertSerializedReservation = (serialized: SerializedReservation): Reservation => {
@@ -190,7 +194,6 @@ export function AdminRequests() {
 
     return overlaps
   }
-
   const handleApprove = async (request: Reservation) => {
     setSelectedRequest(request)
 
@@ -206,6 +209,7 @@ export function AdminRequests() {
   }
 
   const processApproval = async (request: Reservation) => {
+    setApprovingIds(prev => new Set(prev).add(request.id))
     try {
       await approveReservation(request.id)
       toast({
@@ -219,9 +223,16 @@ export function AdminRequests() {
         description: "Failed to approve reservation",
         variant: "destructive",
       })
+    } finally {
+      setApprovingIds(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(request.id)
+        return newSet      })
     }
   }
+  
   const handleReject = async (id: string) => {
+    setRejectingIds(prev => new Set(prev).add(id))
     try {
       await rejectReservation(id)
       toast({
@@ -234,6 +245,12 @@ export function AdminRequests() {
         title: "Error",
         description: "Failed to reject reservation",
         variant: "destructive",
+      })
+    } finally {
+      setRejectingIds(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(id)
+        return newSet
       })
     }
   }
@@ -390,15 +407,30 @@ export function AdminRequests() {
                         </TooltipTrigger>
                         <TooltipContent>This reservation overlaps with existing approved reservations</TooltipContent>
                       </Tooltip>
-                    </TooltipProvider>
-
-                    <Button variant="outline" size="sm" onClick={() => handleReject(request.id)}>
-                      <XCircle className="mr-2 h-4 w-4" />
-                      Reject
+                    </TooltipProvider>                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => handleReject(request.id)}
+                      disabled={rejectingIds.has(request.id) || approvingIds.has(request.id)}
+                    >
+                      {rejectingIds.has(request.id) ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <XCircle className="mr-2 h-4 w-4" />
+                      )}
+                      {rejectingIds.has(request.id) ? "Rejecting..." : "Reject"}
                     </Button>
-                    <Button size="sm" onClick={() => handleApprove(request)}>
-                      <CheckCircle className="mr-2 h-4 w-4" />
-                      Approve
+                    <Button 
+                      size="sm" 
+                      onClick={() => handleApprove(request)}
+                      disabled={approvingIds.has(request.id) || rejectingIds.has(request.id)}
+                    >
+                      {approvingIds.has(request.id) ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <CheckCircle className="mr-2 h-4 w-4" />
+                      )}
+                      {approvingIds.has(request.id) ? "Approving..." : "Approve"}
                     </Button>
                   </div>
                 </div>
@@ -422,18 +454,19 @@ export function AdminRequests() {
                 )}
               />
               Overlapping Reservations Detected
-            </DialogTitle>
-            <DialogDescription>
-              This reservation overlaps with {overlappingReservations.length} existing
-              {overlappingReservations.length === 1 ? " reservation" : " reservations"}.
-              {overlappingReservations.length >= 2 ? (
-                <span className="font-medium text-amber-700">
-                  {" "}
-                  Multiple overlaps detected, please review carefully.
+            </DialogTitle>            <DialogDescription asChild>
+              <div>
+                <span>
+                  This reservation overlaps with {overlappingReservations.length} existing
+                  {overlappingReservations.length === 1 ? " reservation" : " reservations"}.
                 </span>
-              ) : (
-                ""
-              )}
+                {overlappingReservations.length >= 2 && (
+                  <span className="font-medium text-amber-700">
+                    {" "}
+                    Multiple overlaps detected, please review carefully.
+                  </span>
+                )}
+              </div>
             </DialogDescription>
           </DialogHeader>
 
@@ -484,19 +517,26 @@ export function AdminRequests() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowOverlapDialog(false)}>
               Cancel
-            </Button>
-            <Button
+            </Button>            <Button
               onClick={() => {
                 processApproval(selectedRequest as Reservation)
                 setShowOverlapDialog(false)
               }}
+              disabled={selectedRequest ? approvingIds.has(selectedRequest.id) : false}
               className={cn(
                 overlapSeverity === "low" && "bg-amber-500 hover:bg-amber-600",
                 overlapSeverity === "medium" && "bg-orange-500 hover:bg-orange-600",
                 overlapSeverity === "high" && "bg-destructive hover:bg-destructive/90",
               )}
             >
-              Approve Anyway
+              {selectedRequest && approvingIds.has(selectedRequest.id) ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Approving...
+                </>
+              ) : (
+                "Approve Anyway"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

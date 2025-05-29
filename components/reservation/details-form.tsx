@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/components/ui/use-toast"
 import { submitReservation, getSystemSettings } from "@/lib/actions"
 import { useAuth } from "@/hooks/use-auth"
-import { CalendarDays, Clock, Users, FileText } from "lucide-react"
+import { CalendarDays, Clock, Users, FileText, Loader2 } from "lucide-react"
 import type { SystemSettings } from "@/lib/types"
 
 interface ReservationDetailsFormProps {
@@ -242,9 +242,15 @@ export function ReservationDetailsForm({ selectedDate, startTime, endTime, onBac
         <CardFooter className="flex justify-between">
           <Button type="button" variant="outline" onClick={onBack} disabled={isSubmitting}>
             Back
-          </Button>
-          <Button type="submit" disabled={isSubmitting || isLoading}>
-            {isSubmitting ? "Submitting..." : "Submit Reservation Request"}
+          </Button>          <Button type="submit" disabled={isSubmitting || isLoading}>
+            {isSubmitting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Submitting...
+              </>
+            ) : (
+              "Submit Reservation Request"
+            )}
           </Button>
         </CardFooter>
       </form>

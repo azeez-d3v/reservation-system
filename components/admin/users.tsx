@@ -187,10 +187,10 @@ export function AdminUsers() {
               Are you sure you want to disable this user? They will no longer be able to log in or make reservations.
               {selectedUser && (
                 <div className="mt-2 p-3 border rounded-md bg-muted/50">
-                  <p>
+                  <div>
                     <strong>{selectedUser.name}</strong>
-                  </p>
-                  <p className="text-sm">{selectedUser.email}</p>
+                  </div>
+                  <div className="text-sm">{selectedUser.email}</div>
                 </div>
               )}
             </AlertDialogDescription>
@@ -216,10 +216,10 @@ export function AdminUsers() {
               Are you sure you want to enable this user? They will be able to log in and make reservations again.
               {selectedUser && (
                 <div className="mt-2 p-3 border rounded-md bg-muted/50">
-                  <p>
+                  <div>
                     <strong>{selectedUser.name}</strong>
-                  </p>
-                  <p className="text-sm">{selectedUser.email}</p>
+                  </div>
+                  <div className="text-sm">{selectedUser.email}</div>
                 </div>
               )}
             </AlertDialogDescription>
