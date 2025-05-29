@@ -61,6 +61,12 @@ export const authOptions: NextAuthOptions = {
       return session
     },    async signIn({ user, account, profile }) {
       if (account?.provider === "google" && user.email) {
+        // Check if email has the required domain
+        if (!user.email.endsWith('@leadersics.edu.ph')) {
+          console.log(`Sign in denied for email: ${user.email} - Invalid domain`)
+          return false
+        }
+
         // Check if email is verified 
         const googleProfile = profile as any
         if (!googleProfile?.email_verified) {

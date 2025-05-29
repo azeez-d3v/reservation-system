@@ -14,7 +14,6 @@ export function useAuth() {
   const isLoading = status === "loading"
   const isAuthenticated = !!session
   const user = session?.user
-
   const login = async () => {
     try {
       await signIn("google", { callbackUrl: "/dashboard" })

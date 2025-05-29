@@ -70,7 +70,7 @@ export default function LoginPage() {
       <div className="mx-auto flex w-full flex-col justify-center space-y-6 sm:w-[350px]">
         <div className="flex flex-col space-y-2 text-center">
           <h1 className="text-2xl font-semibold tracking-tight">Welcome back</h1>
-          <p className="text-sm text-muted-foreground">Sign in with your Google account to continue</p>
+          <p className="text-sm text-muted-foreground">Sign in with your @leadersics.edu.ph Google account</p>
         </div>
 
         {error === "OAuthAccountNotLinked" && (
@@ -82,7 +82,16 @@ export default function LoginPage() {
           </Alert>
         )}
 
-        {error && error !== "OAuthAccountNotLinked" && (
+        {error === "AccessDenied" && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              Access denied. Only email addresses with @leadersics.edu.ph domain are allowed to sign in.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {error && error !== "OAuthAccountNotLinked" && error !== "AccessDenied" && (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
