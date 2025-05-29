@@ -31,7 +31,6 @@ import { useAuth } from "@/hooks/use-auth"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Progress } from "@/components/ui/progress"
 import { useToast } from "@/components/ui/use-toast"
@@ -670,213 +669,337 @@ export default function HomePage() {
               </div>
             </div>
           </CardContent>
-        </Card>        {/* Time Slot Selection Sheet */}
+        </Card>        {/* Reservation Sheet - Completely Redesigned */}
         <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
-          <SheetContent className="w-full sm:max-w-md p-3 sm:p-6 flex flex-col overflow-hidden">
-            <SheetHeader className="pb-2 flex-shrink-0">
-              <SheetTitle>Make a Reservation</SheetTitle>
-              {selectedDate && (
-                <div className="flex items-center justify-center w-full text-sm font-medium bg-muted p-2 rounded-md mt-1">
-                  <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
-                  {format(selectedDate, "EEEE, MMMM d, yyyy")}
+          <SheetContent className="w-full sm:max-w-lg p-0 flex flex-col overflow-hidden">            {/* Header with Progress */}
+            <div className="bg-gradient-to-r from-primary/5 to-primary/10 border-b">
+              <div className="p-4 sm:p-6">
+                <div className="mb-4">
+                  <h2 className="text-xl font-semibold">Book Gymnasium</h2>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {activeTab === "time-selection" ? "Choose your preferred time" : "Review your reservation"}
+                  </p>
                 </div>
-              )}
-            </SheetHeader>
-            
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0 w-full">
-              <TabsList className="grid w-full grid-cols-2 mb-1 flex-shrink-0">
-                <TabsTrigger value="time-selection" className="text-sm">Select Time</TabsTrigger>
-                <TabsTrigger 
-                  value="reservation-details" 
-                  disabled={!selectedTime}
-                  className="disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                >
-                  Details
-                </TabsTrigger>
-              </TabsList>
-                <TabsContent value="time-selection" className="flex flex-col flex-1 min-h-0 w-full">
-                {!selectedDate ? (
-                  <div className="flex flex-col items-center justify-center flex-1 text-center w-full">
-                    <Clock className="h-12 w-12 text-muted-foreground mb-4" />
-                    <p className="text-muted-foreground">Select a date to view available time slots</p>
+                  {/* Step Indicator */}
+                <div className="flex items-center justify-center gap-2 mb-4">
+                  <div className={cn(
+                    "w-8 h-8 rounded-full border-2 flex items-center justify-center text-xs font-medium transition-colors",
+                    activeTab === "time-selection" 
+                      ? "bg-primary text-primary-foreground border-primary" 
+                      : "bg-muted text-muted-foreground border-muted-foreground/20"
+                  )}>
+                    1
+                  </div>                  <div className={cn(
+                    "w-12 h-1 rounded-full transition-colors",
+                    "bg-primary" // Always show primary color for the connecting line
+                  )} />
+                  <div className={cn(
+                    "w-8 h-8 rounded-full border-2 flex items-center justify-center text-xs font-medium transition-colors",
+                    activeTab === "reservation-details" && selectedTime
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : selectedTime
+                      ? "bg-background text-primary border-primary"
+                      : "bg-muted text-muted-foreground border-muted-foreground/20"
+                  )}>
+                    2
                   </div>
-                ) : isLoadingTimeSlots ? (
-                  <div className="grid grid-cols-3 gap-1 flex-1 content-start w-full">
-                    {Array.from({ length: 18 }).map((_, i) => (
-                      <Skeleton key={i} className="h-9 w-full" />
-                    ))}
-                  </div>
-                ) : (                  <div className="flex flex-col flex-1 min-h-0 overflow-hidden w-full">
-                    <TimeSlotGrid
-                      timeSlots={timeSlots.map((slot) => ({
-                        ...slot,
-                        status: slot.status || (slot.available ? "available" : "unavailable"),
-                      }))}
-                      onSelectTimeSlot={handleTimeSlotSelect}
-                      requiresLogin={!user}
-                      selectedTime={selectedTime || undefined}
-                      selectedDate={selectedDate}
-                      use12HourFormat={use12HourFormat}
-                      hasOverlappingReservations={hasOverlappingReservations}
-                      timeSlotSettings={timeSlotSettings}
-                      operationalHours={operationalHours}
-                    />
-                  </div>
-                )}                
-                {selectedDate && selectedTime && (
-                  <div className="mt-4 flex gap-2 flex-shrink-0 sticky bottom-0 pt-2 bg-background border-t">
-                    <Button 
-                      variant="outline" 
-                      onClick={() => setIsSheetOpen(false)} 
-                      className="flex-1"
-                    >
-                      Cancel
-                    </Button>
-                    <Button 
-                      onClick={() => setActiveTab("reservation-details")} 
-                      className="flex-1 flex items-center justify-center"
-                    >
-                      Next
-                      <ChevronRight className="ml-1 h-4 w-4" />
-                    </Button>
+                </div>
+                
+                {selectedDate && (
+                  <div className="bg-background/60 backdrop-blur-sm border rounded-lg p-3">
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      <CalendarIcon className="h-4 w-4 text-primary" />
+                      <span>{format(selectedDate, "EEEE, MMMM d, yyyy")}</span>
+                    </div>
                   </div>
                 )}
-              </TabsContent>                
-              <TabsContent value="reservation-details" className="flex flex-col flex-1 min-h-0 w-full">
-                {selectedDate && selectedTime ? (
-                  <>
-                    {/* Scrollable content area */}
-                    <div className="flex-1 overflow-y-auto space-y-3 pt-1">
-                      <Alert className="w-full">
-                        <Info className="h-4 w-4" />
-                        <AlertTitle className="text-sm font-semibold">Gymnasium Hours</AlertTitle>
-                        <AlertDescription className="text-xs sm:text-sm">
-                          The gymnasium is open from {formatTimeForDisplay(operationalHours.start)} to{" "}
-                          {formatTimeForDisplay(operationalHours.end)}. Reservations must end by closing time.
-                        </AlertDescription>
-                      </Alert>                      <Card className="bg-muted/30">
-                        <CardContent className="py-3">
-                          <div className="space-y-3">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center">
-                                <Clock className="h-4 w-4 mr-2 text-primary" />
-                                <span className="font-medium">Start Time</span>
-                              </div>
-                              <Badge variant="outline" className="bg-blue-50 text-blue-700">
-                                {formatTimeForDisplay(selectedTime)}
-                              </Badge>
+              </div>
+            </div>
+
+            {/* Content Area */}
+            <div className="flex-1 overflow-hidden">
+              {activeTab === "time-selection" && (
+                <div className="h-full flex flex-col">
+                  {!selectedDate ? (
+                    <div className="flex-1 flex flex-col items-center justify-center text-center p-6">
+                      <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                        <Clock className="h-8 w-8 text-primary" />
+                      </div>
+                      <h3 className="font-medium mb-2">Select a Date First</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Choose a date from the calendar to view available time slots
+                      </p>
+                    </div>
+                  ) : isLoadingTimeSlots ? (
+                    <div className="p-4 space-y-4">
+                      <div className="space-y-2">
+                        <Skeleton className="h-4 w-32" />
+                        <Skeleton className="h-10 w-full" />
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        {Array.from({ length: 12 }).map((_, i) => (
+                          <Skeleton key={i} className="h-10 w-full" />
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex-1 flex flex-col overflow-hidden">
+                      <div className="p-4 border-b bg-muted/30">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Clock className="h-4 w-4 text-primary" />
+                          <h3 className="font-medium">Available Time Slots</h3>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Tap a time slot to select it for your reservation
+                        </p>
+                      </div>
+                      
+                      <div className="flex-1 overflow-hidden p-4">
+                        <TimeSlotGrid
+                          timeSlots={timeSlots.map((slot) => ({
+                            ...slot,
+                            status: slot.status || (slot.available ? "available" : "unavailable"),
+                          }))}
+                          onSelectTimeSlot={handleTimeSlotSelect}
+                          requiresLogin={!user}
+                          selectedTime={selectedTime || undefined}
+                          selectedDate={selectedDate}
+                          use12HourFormat={use12HourFormat}
+                          hasOverlappingReservations={hasOverlappingReservations}
+                          timeSlotSettings={timeSlotSettings}
+                          operationalHours={operationalHours}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Time Selection Footer */}
+                  {selectedDate && selectedTime && (
+                    <div className="border-t bg-background/95 backdrop-blur-sm">
+                      <div className="p-4">
+                        <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 mb-4">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 rounded-full bg-primary" />
+                              <span className="text-sm font-medium">Selected Time</span>
                             </div>
+                            <Badge variant="secondary" className="bg-primary/10 text-primary">
+                              {formatTimeForDisplay(selectedTime)}
+                            </Badge>
+                          </div>
+                        </div>
+                        
+                        <div className="flex gap-3">
+                          <Button 
+                            variant="outline" 
+                            onClick={() => setIsSheetOpen(false)} 
+                            className="flex-1"
+                          >
+                            Cancel
+                          </Button>
+                          <Button 
+                            onClick={() => setActiveTab("reservation-details")} 
+                            className="flex-1 gap-2"
+                          >
+                            Continue
+                            <ChevronRight className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
-                            <div className="space-y-2">
-                              <div className="flex justify-between items-center">
-                                <Label htmlFor="duration">Duration</Label>
-                                <span className="text-xs text-muted-foreground">Max: {formatDuration(maxPossibleDuration)}</span>
-                              </div>
-                              <Select value={selectedDuration.toString()} onValueChange={handleDurationChange}>
-                                <SelectTrigger id="duration">
-                                  <SelectValue placeholder="Select duration" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {generateDurationOptions(maxPossibleDuration).map((duration) => (
-                                    <SelectItem key={duration} value={duration.toString()}>
-                                      {formatDuration(duration)}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+              {activeTab === "reservation-details" && (
+                <div className="h-full flex flex-col">
+                  {selectedDate && selectedTime ? (
+                    <>
+                      {/* Scrollable Details Content */}
+                      <div className="flex-1 overflow-y-auto">
+                        <div className="p-4 space-y-6">
+                          {/* Gymnasium Hours Info */}
+                          <Alert className="border-blue-200 bg-blue-50/50">
+                            <Info className="h-4 w-4 text-blue-600" />
+                            <AlertTitle className="text-blue-900">Gymnasium Hours</AlertTitle>
+                            <AlertDescription className="text-blue-800">
+                              Open from {formatTimeForDisplay(operationalHours.start)} to{" "}
+                              {formatTimeForDisplay(operationalHours.end)}. All reservations must end by closing time.
+                            </AlertDescription>
+                          </Alert>
 
-                              <div className="pt-2">
-                                <Progress value={(selectedDuration / maxPossibleDuration) * 100} className="h-2" />
-                                <div className="flex justify-between text-xs text-muted-foreground mt-1">
-                                  <span>{formatDuration(timeSlotSettings?.minDuration || 30)}</span>
-                                  <span>{formatDuration(maxPossibleDuration)}</span>
+                          {/* Time & Duration Configuration */}
+                          <Card className="border-0 bg-gradient-to-br from-muted/30 to-muted/60">
+                            <CardHeader className="pb-3">
+                              <CardTitle className="text-base flex items-center gap-2">
+                                <Clock className="h-4 w-4 text-primary" />
+                                Reservation Configuration
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                              {/* Start Time Display */}
+                              <div className="flex items-center justify-between p-3 bg-background/80 rounded-lg border">
+                                <div>
+                                  <p className="text-sm font-medium">Start Time</p>
+                                  <p className="text-xs text-muted-foreground">When your session begins</p>
                                 </div>
+                                <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
+                                  {formatTimeForDisplay(selectedTime)}
+                                </Badge>
                               </div>
-                            </div>
 
-                            {hasOverlap && (
-                              <Alert variant="destructive">
-                                <AlertCircle className="h-4 w-4" />
-                                <AlertTitle>Scheduling Conflict</AlertTitle>
-                                <AlertDescription>
-                                  The selected duration overlaps with existing reservations. Please choose a shorter duration.
-                                </AlertDescription>
-                              </Alert>
-                            )}
+                              {/* Duration Selection */}
+                              <div className="space-y-3">
+                                <div className="flex justify-between items-center">
+                                  <div>
+                                    <Label htmlFor="duration" className="text-sm font-medium">Duration</Label>
+                                    <p className="text-xs text-muted-foreground">How long you'll use the gymnasium</p>
+                                  </div>
+                                  <span className="text-xs text-muted-foreground">
+                                    Max: {formatDuration(maxPossibleDuration)}
+                                  </span>
+                                </div>
+                                
+                                <Select value={selectedDuration.toString()} onValueChange={handleDurationChange}>
+                                  <SelectTrigger id="duration" className="h-11">
+                                    <SelectValue placeholder="Choose duration" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {generateDurationOptions(maxPossibleDuration).map((duration) => (
+                                      <SelectItem key={duration} value={duration.toString()}>
+                                        {formatDuration(duration)}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
 
-                            {selectedEndTime && (
-                              <div className="p-3 bg-blue-50 text-blue-800 rounded-md">
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center">
-                                    <Clock className="h-4 w-4 mr-2" />
-                                    <span className="font-medium">Reservation Time</span>
+                                <div className="space-y-2">
+                                  <Progress value={(selectedDuration / maxPossibleDuration) * 100} className="h-2" />
+                                  <div className="flex justify-between text-xs text-muted-foreground">
+                                    <span>Min: {formatDuration(timeSlotSettings?.minDuration || 30)}</span>
+                                    <span>Max: {formatDuration(maxPossibleDuration)}</span>
                                   </div>
                                 </div>
-                                <div className="mt-2 text-center">
-                                  <p className="text-lg font-semibold">
-                                    {formatTimeForDisplay(selectedTime)} - {formatTimeForDisplay(selectedEndTime)}
-                                  </p>
-                                  <p className="text-sm mt-1">{formatDuration(selectedDuration)}</p>
+                              </div>
+
+                              {/* End Time Display */}
+                              {selectedEndTime && (
+                                <div className="p-4 bg-gradient-to-r from-primary/5 to-primary/10 rounded-lg border border-primary/20">
+                                  <div className="text-center">
+                                    <p className="text-sm font-medium text-primary mb-1">Complete Reservation Time</p>
+                                    <p className="text-lg font-semibold">
+                                      {formatTimeForDisplay(selectedTime)} - {formatTimeForDisplay(selectedEndTime)}
+                                    </p>
+                                    <p className="text-sm text-muted-foreground mt-1">
+                                      Total duration: {formatDuration(selectedDuration)}
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Conflict Warning */}
+                              {hasOverlap && (
+                                <Alert variant="destructive">
+                                  <AlertCircle className="h-4 w-4" />
+                                  <AlertTitle>Scheduling Conflict</AlertTitle>
+                                  <AlertDescription>
+                                    Your selected duration conflicts with existing reservations. Please choose a shorter duration.
+                                  </AlertDescription>
+                                </Alert>
+                              )}
+                            </CardContent>
+                          </Card>
+
+                          {/* Login Required Alert */}
+                          {!user && (
+                            <Alert className="border-amber-200 bg-amber-50/50">
+                              <Info className="h-4 w-4 text-amber-600" />
+                              <AlertTitle className="text-amber-900">Authentication Required</AlertTitle>
+                              <AlertDescription className="text-amber-800">
+                                Please log in to complete your gymnasium reservation.
+                              </AlertDescription>
+                            </Alert>
+                          )}
+
+                          {/* Reservation Summary */}
+                          <Card className="border-0 bg-gradient-to-br from-green-50/50 to-emerald-50/50">
+                            <CardHeader className="pb-3">
+                              <CardTitle className="text-base flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full bg-green-500" />
+                                Reservation Summary
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                              <div className="space-y-3">
+                                <div className="flex items-center justify-between py-2 border-b border-green-100">
+                                  <span className="text-sm text-muted-foreground">Date</span>
+                                  <span className="text-sm font-medium">{format(selectedDate, "EEEE, MMMM d, yyyy")}</span>
+                                </div>
+                                <div className="flex items-center justify-between py-2 border-b border-green-100">
+                                  <span className="text-sm text-muted-foreground">Time Slot</span>
+                                  <span className="text-sm font-medium">
+                                    {selectedEndTime 
+                                      ? `${formatTimeForDisplay(selectedTime)} - ${formatTimeForDisplay(selectedEndTime)}` 
+                                      : formatTimeForDisplay(selectedTime)
+                                    }
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between py-2">
+                                  <span className="text-sm text-muted-foreground">Duration</span>
+                                  <span className="text-sm font-medium">{formatDuration(selectedDuration)}</span>
                                 </div>
                               </div>
-                            )}
+                            </CardContent>
+                          </Card>
+                        </div>
+                      </div>
 
-                            {!user && (
-                              <Alert>
-                                <Info className="h-4 w-4" />
-                                <AlertTitle>Login Required</AlertTitle>
-                                <AlertDescription>
-                                  You need to log in to complete your reservation. Click "Continue to Login" below.
-                                </AlertDescription>
-                              </Alert>
-                            )}
-                          </div>
-                        </CardContent>
-                      </Card>
-
-                      <div className="bg-muted/50 p-4 rounded-lg">
-                        <h3 className="font-medium mb-2">Reservation Summary</h3>
-                        <div className="space-y-2 text-sm">
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Date:</span>
-                            <span>{format(selectedDate, "EEEE, MMMM d, yyyy")}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Time:</span>
-                            <span>{selectedEndTime ? `${formatTimeForDisplay(selectedTime)} - ${formatTimeForDisplay(selectedEndTime)}` : formatTimeForDisplay(selectedTime)}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Duration:</span>
-                            <span>{formatDuration(selectedDuration)}</span>
+                      {/* Details Footer */}
+                      <div className="border-t bg-background/95 backdrop-blur-sm">
+                        <div className="p-4">
+                          <div className="flex gap-3">
+                            <Button 
+                              variant="outline" 
+                              onClick={() => setActiveTab("time-selection")} 
+                              className="flex-1 gap-2"
+                            >
+                              <ChevronLeft className="h-4 w-4" />
+                              Back
+                            </Button>
+                            <Button 
+                              onClick={handleContinueToReservation} 
+                              className="flex-1 gap-2"
+                              disabled={hasOverlap}
+                            >
+                              {user ? "Complete Booking" : "Continue to Login"}
+                              <ChevronRight className="h-4 w-4" />
+                            </Button>
                           </div>
                         </div>
                       </div>
-                    </div>                    {/* Sticky footer with buttons */}
-                    <div className="flex gap-2 mt-2 pt-3 border-t bg-background flex-shrink-0">
+                    </>
+                  ) : (
+                    <div className="flex-1 flex flex-col items-center justify-center text-center p-6">
+                      <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
+                        <Clock className="h-8 w-8 text-muted-foreground" />
+                      </div>
+                      <h3 className="font-medium mb-2">No Time Selected</h3>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Please go back and select a time slot to view reservation details
+                      </p>
                       <Button 
                         variant="outline" 
-                        onClick={() => setActiveTab("time-selection")} 
-                        className="flex-1"
+                        onClick={() => setActiveTab("time-selection")}
+                        className="gap-2"
                       >
-                        Back
-                      </Button>
-                      <Button 
-                        onClick={handleContinueToReservation} 
-                        className="flex-1"
-                        disabled={hasOverlap}
-                      >
-                        {user ? "Continue to Reservation" : "Continue to Login"}
+                        <ChevronLeft className="h-4 w-4" />
+                        Select Time
                       </Button>
                     </div>
-                  </>
-                ) : (
-                  <div className="flex flex-col items-center justify-center py-12 text-center">
-                    <Clock className="h-12 w-12 text-muted-foreground mb-4" />
-                    <p className="text-muted-foreground">Please select a time slot first</p>
-                  </div>
-                )}
-              </TabsContent>
-            </Tabs>
+                  )}
+                </div>
+              )}
+            </div>
           </SheetContent>
         </Sheet>
       </div>
