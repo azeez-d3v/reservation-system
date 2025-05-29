@@ -344,14 +344,14 @@ export async function validateTimeSlotForDate(
       const endMinutes = timeToMinutes(operatingSlot.end)
       
       for (let minutes = startMinutes; minutes < endMinutes; minutes += timeSlotInterval) {
-        const timeString = minutesToTimeString(minutes)
-        
-        // Find conflicting reservations for this time slot
+        const timeString = minutesToTimeString(minutes)        // Find conflicting reservations for this time slot
         const conflictingReservations = existingReservations.filter(reservation => {
           const reservationStartMinutes = timeToMinutes(reservation.startTime)
           const reservationEndMinutes = timeToMinutes(reservation.endTime)
           
-          return minutes >= reservationStartMinutes && minutes < reservationEndMinutes
+          // Include slots that are within the reservation period OR are the exact end time boundary
+          return (minutes >= reservationStartMinutes && minutes < reservationEndMinutes) ||
+                 (minutes === reservationEndMinutes)
         })
         
         const occupancy = conflictingReservations.length

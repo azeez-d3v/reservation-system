@@ -899,8 +899,7 @@ export async function getAvailableTimeSlots(
     
     // Calculate precise occupancy and conflicts for each time slot
     const timeSlotOccupancy: Record<string, { count: number; reservations: Reservation[] }> = {}
-    
-    existingReservations.forEach(reservation => {
+      existingReservations.forEach(reservation => {
       const startMinutes = timeToMinutes(reservation.startTime)
       const endMinutes = timeToMinutes(reservation.endTime)
       
@@ -908,7 +907,9 @@ export async function getAvailableTimeSlots(
         const slotMinutes = timeToMinutes(slot.time)
         
         // Check if this time slot overlaps with the reservation
-        if (slotMinutes >= startMinutes && slotMinutes < endMinutes) {
+        // Include slots that are within the reservation period OR are the exact end time boundary
+        if ((slotMinutes >= startMinutes && slotMinutes < endMinutes) ||
+            (slotMinutes === endMinutes)) {
           if (!timeSlotOccupancy[slot.time]) {
             timeSlotOccupancy[slot.time] = { count: 0, reservations: [] }
           }
@@ -1359,9 +1360,7 @@ export async function getEnhancedTimeSlotAvailability(
       const endMinutes = timeToMinutes(slot.end)
       
       for (let minutes = startMinutes; minutes < endMinutes; minutes += interval) {
-        const timeString = minutesToTimeString(minutes)
-        
-        // Find overlapping reservations for this exact time slot
+        const timeString = minutesToTimeString(minutes)        // Find overlapping reservations for this exact time slot
         const conflictingReservations = existingReservations.filter(reservation => {
           if (reservation.status === "cancelled" || reservation.status === "rejected") {
             return false
@@ -1371,7 +1370,9 @@ export async function getEnhancedTimeSlotAvailability(
           const reservationEndMinutes = timeToMinutes(reservation.endTime)
           
           // Check if this time slot overlaps with the reservation
-          return minutes >= reservationStartMinutes && minutes < reservationEndMinutes
+          // Include slots that are within the reservation period OR are the exact end time boundary
+          return (minutes >= reservationStartMinutes && minutes < reservationEndMinutes) ||
+                 (minutes === reservationEndMinutes)
         })
         
         const occupancy = conflictingReservations.length
@@ -1503,15 +1504,16 @@ export async function validateTimeSlotForReservation(
     let worstOccupancy = 0
     let totalConflicts = 0
     const allOverlappingReservations: Reservation[] = []
-    
-    affectedSlots.forEach(slotTime => {
+      affectedSlots.forEach(slotTime => {
       const slotMinutes = timeToMinutes(slotTime)
       
       const slotConflicts = activeReservations.filter(reservation => {
         const reservationStartMinutes = timeToMinutes(reservation.startTime)
         const reservationEndMinutes = timeToMinutes(reservation.endTime)
         
-        return slotMinutes >= reservationStartMinutes && slotMinutes < reservationEndMinutes
+        // Include slots that are within the reservation period OR are the exact end time boundary
+        return (slotMinutes >= reservationStartMinutes && slotMinutes < reservationEndMinutes) ||
+               (slotMinutes === reservationEndMinutes)
       })
       
       if (slotConflicts.length > worstOccupancy) {

@@ -553,7 +553,6 @@ export default function HomePage() {
               <span className="text-green-600">●</span> Available 
               <span className="text-amber-600 ml-2">●</span> Limited 
               <span className="text-red-600 ml-2">●</span> Full
-              <span className="ml-2">• Book 1 week ahead • No weekends</span>
             </p>
           </AlertDescription>
         </Alert>
