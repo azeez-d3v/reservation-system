@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Progress } from "@/components/ui/progress"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { TimeSlotSettings } from "@/lib/types"
 
 interface TimeSlotGridProps {
   timeSlots: {
@@ -33,6 +34,8 @@ interface TimeSlotGridProps {
   selectedDate?: Date
   use12HourFormat?: boolean
   hasOverlappingReservations?: boolean
+  timeSlotSettings?: TimeSlotSettings
+  operationalHours?: { start: string; end: string }
 }
 
 export function TimeSlotGrid({
@@ -43,16 +46,16 @@ export function TimeSlotGrid({
   selectedDate,
   use12HourFormat = true,
   hasOverlappingReservations = false,
-}: TimeSlotGridProps) {
-  const [sortedTimeSlots, setSortedTimeSlots] = useState<any[]>([])
+  timeSlotSettings,
+  operationalHours: propOperationalHours,
+}: TimeSlotGridProps) {  const [sortedTimeSlots, setSortedTimeSlots] = useState<any[]>([])
   const [selectedStartTime, setSelectedStartTime] = useState<string | null>(selectedTime || null)
-  const [selectedDuration, setSelectedDuration] = useState<number>(60)
+  const [selectedDuration, setSelectedDuration] = useState<number>(timeSlotSettings?.minDuration || 60)
   const [selectedEndTime, setSelectedEndTime] = useState<string | null>(null)
-  const [durationOptions, setDurationOptions] = useState<number[]>([30, 60, 90, 120, 180, 240, 300, 360, 420, 480, 540])
-  const [maxPossibleDuration, setMaxPossibleDuration] = useState<number>(540) // 9 hours max (8AM to 5PM)
-  const [operationalHours, setOperationalHours] = useState({ start: "08:00", end: "17:00" })
+  const [durationOptions, setDurationOptions] = useState<number[]>([])
+  const [maxPossibleDuration, setMaxPossibleDuration] = useState<number>(timeSlotSettings?.maxDuration || 540)
+  const [operationalHours, setOperationalHours] = useState(propOperationalHours || { start: "08:00", end: "17:00" })
   const [hasOverlap, setHasOverlap] = useState(false)
-
   // Sort time slots chronologically
   useEffect(() => {
     // Sort time slots chronologically
@@ -73,6 +76,54 @@ export function TimeSlotGrid({
       setSelectedStartTime(selectedTime)
     }
   }, [timeSlots, selectedTime])
+
+  // Setup duration options and operational hours based on settings
+  useEffect(() => {
+    if (timeSlotSettings) {
+      // Set duration options based on admin settings
+      const minDuration = timeSlotSettings.minDuration || 30
+      const maxDuration = timeSlotSettings.maxDuration || 540
+      const interval = timeSlotSettings.timeSlotInterval || 30
+
+      const options: number[] = []
+      for (let i = minDuration; i <= maxDuration; i += interval) {
+        options.push(i)
+      }
+      setDurationOptions(options)
+      setMaxPossibleDuration(maxDuration)
+
+      // Set initial duration if not already set
+      if (!selectedTime && selectedDuration === (timeSlotSettings?.minDuration || 60)) {
+        setSelectedDuration(minDuration)
+      }
+
+      // Set operational hours from business hours if available and selectedDate is provided
+      if (timeSlotSettings.businessHours && selectedDate) {
+        const dayOfWeek = selectedDate.getDay()
+        const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
+        const daySchedule = timeSlotSettings.businessHours[dayNames[dayOfWeek]]
+
+        if (daySchedule && daySchedule.enabled && daySchedule.timeSlots.length > 0) {
+          const firstSlot = daySchedule.timeSlots[0]
+          const lastSlot = daySchedule.timeSlots[daySchedule.timeSlots.length - 1]
+
+          setOperationalHours({
+            start: firstSlot.start,
+            end: lastSlot.end,
+          })
+        }
+      }
+    } else {
+      // Fallback to default values when no settings are provided
+      setDurationOptions([30, 60, 90, 120, 180, 240, 300, 360, 420, 480, 540])
+      setMaxPossibleDuration(540)
+    }
+
+    // Update operational hours from props if provided
+    if (propOperationalHours) {
+      setOperationalHours(propOperationalHours)
+    }
+  }, [timeSlotSettings, selectedDate, propOperationalHours, selectedTime, selectedDuration])
 
   // Update available end times when start time changes
   useEffect(() => {
@@ -152,23 +203,19 @@ export function TimeSlotGrid({
       return `${hours} hour${hours > 1 ? "s" : ""} ${mins} minutes`
     }
   }
-
-  // Generate duration options based on maximum possible duration
+  // Generate duration options based on maximum possible duration and admin settings
   const generateDurationOptions = (maxDuration: number) => {
     const options: number[] = []
-    let duration = 30 // Start with 30 minute increments
+    const minDuration = timeSlotSettings?.minDuration || 30
+    const interval = timeSlotSettings?.timeSlotInterval || 30
+    const adminMaxDuration = timeSlotSettings?.maxDuration || 540
 
-    while (duration <= maxDuration && duration <= 540) { // Cap at 9 hours max (540 minutes)
+    // Use the smaller of the passed maxDuration and admin's maxDuration
+    const effectiveMaxDuration = Math.min(maxDuration, adminMaxDuration)
+
+    // Generate options based on admin settings
+    for (let duration = minDuration; duration <= effectiveMaxDuration; duration += interval) {
       options.push(duration)
-
-      // Use smaller increments for shorter durations, larger increments for longer durations
-      if (duration < 120) { // Up to 2 hours: 30 min increments
-        duration += 30
-      } else if (duration < 240) { // 2-4 hours: 60 min increments
-        duration += 60
-      } else { // Over 4 hours: 120 min increments
-        duration += 120
-      }
     }
 
     return options
@@ -189,23 +236,27 @@ export function TimeSlotGrid({
         <p className="text-muted-foreground">No time slots available for this date</p>
       </div>
     )
-  }
-  return (
+  }  return (
     <div className="flex flex-col h-full w-full">
-      <Alert className="flex-shrink-0 mb-4 w-full">
-        <Info className="h-4 w-4" />
-        <AlertTitle>Gymnasium Hours</AlertTitle>
-        <AlertDescription>
-          The gymnasium is open from {formatTimeForDisplay(operationalHours.start)} to{" "}
-          {formatTimeForDisplay(operationalHours.end)}. Select a time slot to continue.
-        </AlertDescription>
-      </Alert>
+      {hasOverlappingReservations && (
+        <div className="bg-amber-50 border border-amber-200 rounded-md p-3 mb-3 w-full">
+          <div className="flex items-start">
+            <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 mr-2 flex-shrink-0" />
+            <div>
+              <h4 className="text-sm font-semibold text-amber-900">Limited Availability</h4>
+              <p className="text-xs sm:text-sm text-amber-800">
+                Time slots with limited availability are shown in amber with a warning icon. Hover over any time slot for more details.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-col flex-1 w-full min-h-0">
-        <h3 className="text-sm font-medium mb-3 flex-shrink-0">Available Time Slots</h3>
-        <div className="flex-1 overflow-y-auto pr-2 w-full">
-          <TooltipProvider>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 w-full">
+        <h3 className="text-sm font-semibold mb-2 flex-shrink-0">Available Time Slots</h3>
+        <div className="flex-1 overflow-y-auto pr-1 sm:pr-2 w-full">
+          <TooltipProvider delayDuration={100}>
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-1 sm:gap-2 w-full">
               {sortedTimeSlots.map((slot) => {
                 const isFullyBooked = slot.status === "full" || slot.status === "unavailable"
                 const isLimited = slot.status === "limited"
@@ -250,22 +301,15 @@ export function TimeSlotGrid({
                           <span>Current bookings: {slot.occupancy}</span>
                         </div>
                       )}
-                      
-                      {hasConflicts && (
+                        {hasConflicts && (
                         <div className="border-t pt-2 mt-2">
-                          <div className="text-red-600 font-medium mb-1">
-                            {slot.conflicts!.length} Conflict{slot.conflicts!.length > 1 ? 's' : ''}:
+                          <div className="text-red-600 font-medium mb-1 flex items-center">
+                            <AlertCircle className="h-3 w-3 mr-1" />
+                            <span>{slot.conflicts!.length} Reservation{slot.conflicts!.length > 1 ? 's' : ''} at this time</span>
                           </div>
-                          {slot.conflicts!.slice(0, 3).map((conflict: { id: string; name: string; startTime: string; endTime: string }, index: number) => (
-                            <div key={index} className="text-xs text-red-600 pl-2">
-                              • {conflict.name} ({conflict.startTime}-{conflict.endTime})
-                            </div>
-                          ))}
-                          {slot.conflicts!.length > 3 && (
-                            <div className="text-xs text-red-500 pl-2">
-                              ... and {slot.conflicts!.length - 3} more
-                            </div>
-                          )}
+                          <div className="text-xs text-red-600">
+                            This time slot has limited availability due to existing reservations.
+                          </div>
                         </div>
                       )}
                       
@@ -298,11 +342,11 @@ export function TimeSlotGrid({
                           variant="outline"
                           size="sm"
                           className={cn(
-                            "justify-center relative h-auto py-3 px-2 text-xs w-full",
-                            isAvailable && "border-green-500 bg-green-50 hover:bg-green-200 text-green-800",
-                            isLimited && "border-amber-500 bg-amber-50 hover:bg-amber-200 text-amber-800",
-                            isFullyBooked && "border-red-300 bg-red-50 text-red-700 opacity-60 cursor-not-allowed hover:bg-red-50",
-                            selectedStartTime === slot.time && "ring-2 ring-offset-2 ring-primary",
+                            "justify-center relative h-10 py-2 px-1 text-xs sm:text-sm w-full",
+                            isAvailable && "border-green-500 bg-green-50 hover:bg-green-100 text-green-800 shadow-sm",
+                            isLimited && "border-amber-500 bg-amber-50 hover:bg-amber-100 text-amber-800 shadow-sm",
+                            isFullyBooked && "border-red-300 bg-red-50 text-red-700 opacity-70 cursor-not-allowed hover:bg-red-50",
+                            selectedStartTime === slot.time && "ring-2 ring-offset-1 ring-primary shadow",
                           )}
                           onClick={() => slot.available && handleTimeSlotClick(slot.time)}
                           disabled={!slot.available || requiresLogin}
@@ -314,48 +358,13 @@ export function TimeSlotGrid({
                               {isLimited && <AlertTriangle className="h-3 w-3 text-amber-600" />}
                               {isFullyBooked && <AlertCircle className="h-3 w-3 text-red-600" />}
                             </div>
-                            
-                            {slot.capacity && slot.occupancy !== undefined && (
-                              <div className="flex items-center mt-0.5 text-xs">
-                                <Users className="h-3 w-3 mr-1" />
-                                <span>{slot.occupancy}/{slot.capacity}</span>
-                              </div>
-                            )}
-                            
-                            {slot.occupancy !== undefined && slot.occupancy > 0 && !slot.capacity && (
-                              <div className="flex items-center mt-0.5 text-xs">
-                                <Users className="h-3 w-3 mr-1" />
-                                <span>{slot.occupancy}</span>
-                              </div>
-                            )}
-                            
-                            {hasConflicts && (
-                              <Badge variant="destructive" className="text-xs mt-1">
-                                {slot.conflicts!.length} conflict{slot.conflicts!.length > 1 ? 's' : ''}
-                              </Badge>
-                            )}
                           </div>
                         </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="top" align="center">
+                      </TooltipTrigger>                        
+                      <TooltipContent side="top" align="center" sideOffset={5} className="z-50 max-w-[200px] sm:max-w-xs">
                         {tooltipContent}
                       </TooltipContent>
                     </Tooltip>
-                    
-                    {selectedStartTime === slot.time && hasConflicts && (
-                      <div className="absolute top-full left-0 right-0 mt-1 z-10">
-                        <Card className="p-2 bg-red-50 border-red-200">
-                          <CardContent className="p-0">
-                            <p className="text-xs text-red-700 font-medium mb-1">Conflicts:</p>
-                            {slot.conflicts!.map((conflict: { id: string; name: string; startTime: string; endTime: string }, index: number) => (
-                              <p key={index} className="text-xs text-red-600">
-                                {conflict.name} ({conflict.startTime}-{conflict.endTime})
-                              </p>
-                            ))}
-                          </CardContent>
-                        </Card>
-                      </div>
-                    )}
                   </div>
                 )
               })}

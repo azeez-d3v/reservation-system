@@ -55,7 +55,7 @@ export function ReservationTimeSlots({
   const [use12HourFormat, setUse12HourFormat] = useState(true)
   const [systemSettings, setSystemSettings] = useState<any>(null)
   const [timeSlotSettings, setTimeSlotSettings] = useState<any>(null)
-  const [durationOptions, setDurationOptions] = useState<number[]>([30, 60, 90, 120, 180, 240])
+  const [durationOptions, setDurationOptions] = useState<number[]>([])
   const [selectedDuration, setSelectedDuration] = useState<number>(initialDuration || 60)
   const [hasOverlap, setHasOverlap] = useState(false)
   const [maxPossibleDuration, setMaxPossibleDuration] = useState<number>(240)

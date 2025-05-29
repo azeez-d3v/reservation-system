@@ -425,14 +425,14 @@ export async function getTimeSlotSettings(): Promise<TimeSlotSettings> {
   try {
     const docRef = doc(db, TIME_SLOT_SETTINGS_COLLECTION, "main")
     const docSnap = await getDoc(docRef)
-    
-    if (docSnap.exists()) {
+      if (docSnap.exists()) {
       const data = docSnap.data()
+      
       return {
         ...data,
         blackoutDates: data.blackoutDates?.map((bd: any) => ({
           ...bd,
-          date: bd.date.toDate()
+          date: bd.date?.toDate ? bd.date.toDate() : new Date(bd.date)
         })) || [],
         // Convert updatedAt timestamp to ISO string if it exists
         ...(data?.updatedAt && { updatedAt: data.updatedAt.toDate().toISOString() })

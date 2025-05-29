@@ -21,7 +21,7 @@ import { ChevronLeft, ChevronRight, Clock, Info, CalendarIcon, Users, AlertCircl
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { getPublicAvailability, getSystemSettings, getEnhancedAvailability } from "@/lib/actions"
+import { getPublicAvailability, getSystemSettings, getEnhancedAvailability, getTimeSlots } from "@/lib/actions"
 import { TimeSlotGrid } from "@/components/calendar/time-slot-grid"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -45,7 +45,7 @@ export default function HomePage() {
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [selectedTime, setSelectedTime] = useState<string | null>(null)
-  const [selectedDuration, setSelectedDuration] = useState<number>(60)
+  const [selectedDuration, setSelectedDuration] = useState<number>(60) // Will be updated by settings
     // Data state
   const [availableDates, setAvailableDates] = useState<string[]>([])
   const [availabilityMap, setAvailabilityMap] = useState<Record<string, string>>({})
@@ -65,6 +65,7 @@ export default function HomePage() {
     }[]
   >([])
   const [systemSettings, setSystemSettings] = useState<any>(null)
+  const [timeSlotSettings, setTimeSlotSettings] = useState<any>(null)
   
   // Loading and error state
   const [isLoadingDates, setIsLoadingDates] = useState(true)
@@ -80,13 +81,12 @@ export default function HomePage() {
   const [selectedEndTime, setSelectedEndTime] = useState<string | null>(null)
   const [maxPossibleDuration, setMaxPossibleDuration] = useState<number>(540)
   const [hasOverlap, setHasOverlap] = useState(false)
-  
-  // Refs for cleanup
+    // Refs for cleanup
   const datesFetchRef = useRef<AbortController | null>(null)
   const timeSlotsFetchRef = useRef<AbortController | null>(null)
   
-  // Static operational hours
-  const operationalHours = useMemo(() => ({ start: "08:00", end: "17:00" }), [])
+  // Dynamic operational hours based on selected date and settings
+  const [operationalHours, setOperationalHours] = useState({ start: "08:00", end: "17:00" })
   
   // Calculate the minimum bookable date (1 week from now) - memoized
   const minBookableDate = useMemo(() => addWeeks(new Date(), 1), [])
@@ -114,16 +114,51 @@ export default function HomePage() {
     }
   }, [])
 
+  const formatBusinessHours = useCallback(() => {
+    if (!timeSlotSettings?.businessHours) return []
+
+    const dayNames = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+    const dayLabels = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    
+    return dayNames.map((dayName, index) => {
+      const daySchedule = timeSlotSettings.businessHours[dayName]
+      
+      if (!daySchedule?.enabled || !daySchedule.timeSlots?.length) {
+        return {
+          day: dayLabels[index],
+          hours: "Closed"
+        }
+      }
+
+      const timeSlots = daySchedule.timeSlots.map((slot: { start: string; end: string }) => 
+        `${formatTimeForDisplay(slot.start)} - ${formatTimeForDisplay(slot.end)}`
+      ).join(", ")
+
+      return {
+        day: dayLabels[index],
+        hours: timeSlots
+      }
+    })
+  }, [timeSlotSettings, formatTimeForDisplay])
   const generateDurationOptions = useCallback((maxDuration: number) => {
     const options = []
-    for (let i = 30; i <= maxDuration; i += 30) {
-      options.push(i)
+    const minDuration = timeSlotSettings?.minDuration || 30
+    const interval = timeSlotSettings?.timeSlotInterval || 30
+    const adminMaxDuration = timeSlotSettings?.maxDuration || 540
+
+    // Use the smaller of the passed maxDuration and admin's maxDuration
+    const effectiveMaxDuration = Math.min(maxDuration, adminMaxDuration)
+
+    // Generate options based on admin settings
+    for (let duration = minDuration; duration <= effectiveMaxDuration; duration += interval) {
+      options.push(duration)
     }
+    
     if (options.length === 0) {
-      options.push(30)
+      options.push(minDuration)
     }
     return options
-  }, [])
+  }, [timeSlotSettings])
 
   // Fetch system settings - only once on mount
   useEffect(() => {
@@ -131,25 +166,59 @@ export default function HomePage() {
     
     const fetchSettings = async () => {
       try {
-        const settings = await getSystemSettings()
+        const [settings, timeSlotSettings] = await Promise.all([
+          getSystemSettings(),
+          getTimeSlots()
+        ])
+        
         if (isMounted) {
           setSystemSettings(settings)
+          setTimeSlotSettings(timeSlotSettings)
           setUse12HourFormat(settings.use12HourFormat !== false)
         }
       } catch (error) {
         if (isMounted) {
           console.error("Failed to fetch system settings:", error)
-          setError("Failed to load system settings. Please try again later.")
-        }
+          setError("Failed to load system settings. Please try again later.")        }
       }
     }
 
     fetchSettings()
-    
-    return () => {
+      return () => {
       isMounted = false
     }
   }, []) // Only run once on mount
+
+  // Update default duration based on time slot settings
+  useEffect(() => {
+    if (timeSlotSettings && selectedDuration === 60) {
+      // Only update if still at default value
+      const minDuration = timeSlotSettings.minDuration || 60
+      setSelectedDuration(minDuration)
+    }
+  }, [timeSlotSettings, selectedDuration])
+
+  // Calculate operational hours based on selected date and time slot settings
+  useEffect(() => {
+    if (timeSlotSettings && selectedDate) {
+      const dayOfWeek = selectedDate.getDay()
+      const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
+      const daySchedule = timeSlotSettings.businessHours[dayNames[dayOfWeek]]
+
+      if (daySchedule && daySchedule.enabled && daySchedule.timeSlots.length > 0) {
+        const firstSlot = daySchedule.timeSlots[0]
+        const lastSlot = daySchedule.timeSlots[daySchedule.timeSlots.length - 1]
+
+        setOperationalHours({
+          start: firstSlot.start,
+          end: lastSlot.end,
+        })
+      } else {
+        // Default operational hours if no schedule is found
+        setOperationalHours({ start: "08:00", end: "17:00" })
+      }
+    }
+  }, [timeSlotSettings, selectedDate])
 
   // Fetch available dates for the current month
   useEffect(() => {
@@ -298,11 +367,10 @@ export default function HomePage() {
     const minutesUntilClose = differenceInMinutes(gymCloseTime, startTimeObj)
     const calculatedMaxDuration = minutesUntilClose > 0 ? minutesUntilClose : 0
     
-    setMaxPossibleDuration(calculatedMaxDuration)
-
-    // Adjust selected duration if it exceeds the maximum
+    setMaxPossibleDuration(calculatedMaxDuration)    // Adjust selected duration if it exceeds the maximum
     if (selectedDuration > calculatedMaxDuration) {
-      const newDuration = Math.floor(calculatedMaxDuration / 30) * 30
+      const interval = timeSlotSettings?.timeSlotInterval || 30
+      const newDuration = Math.floor(calculatedMaxDuration / interval) * interval
       setSelectedDuration(newDuration)
     }
 
@@ -464,15 +532,30 @@ export default function HomePage() {
             <AlertTitle>Error</AlertTitle>
             <AlertDescription>{error}</AlertDescription>
           </Alert>
-        )}
-
-        <Alert className="mb-6">
-          <Info className="h-4 w-4" />
-          <AlertTitle>Reservation Policy</AlertTitle>
-          <AlertDescription>
-            Gymnasium reservations can only be made at least one week in advance. Available slots are shown in green,
-            slots with limited availability are shown in orange, and fully booked slots are shown in red. The gymnasium
-            is open from 8:00 AM to 5:00 PM.
+        )}        <Alert className="mb-4">
+          <Clock className="h-4 w-4" />
+          <AlertTitle className="text-sm font-medium">Gymnasium Hours</AlertTitle>
+          <AlertDescription className="text-xs space-y-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 text-xs">
+              {formatBusinessHours().map((schedule) => (
+                <div key={schedule.day} className="flex items-center gap-1">
+                  <div className={cn(
+                    "w-2 h-2 rounded-full",
+                    schedule.hours === "Closed" ? "bg-red-500" : "bg-green-500"
+                  )} />
+                  <span className="font-medium">{schedule.day.slice(0, 3)}:</span>
+                  <span className={schedule.hours === "Closed" ? "text-muted-foreground" : ""}>
+                    {schedule.hours === "Closed" ? "Closed" : schedule.hours}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground pt-1">
+              <span className="text-green-600">●</span> Available 
+              <span className="text-amber-600 ml-2">●</span> Limited 
+              <span className="text-red-600 ml-2">●</span> Full
+              <span className="ml-2">• Book 1 week ahead • No weekends</span>
+            </p>
           </AlertDescription>
         </Alert>
 
@@ -587,45 +670,31 @@ export default function HomePage() {
               </div>
             </div>
           </CardContent>
-        </Card>
-
-        {/* Time Slot Selection Sheet */}
+        </Card>        {/* Time Slot Selection Sheet */}
         <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
-          <SheetContent className="w-full sm:max-w-md p-4 sm:p-6 flex flex-col overflow-hidden">
-            <SheetHeader className="mb-4 flex-shrink-0">
+          <SheetContent className="w-full sm:max-w-md p-3 sm:p-6 flex flex-col overflow-hidden">
+            <SheetHeader className="pb-2 flex-shrink-0">
               <SheetTitle>Make a Reservation</SheetTitle>
               {selectedDate && (
-                <div className="flex items-center text-sm text-muted-foreground bg-muted/50 p-2 rounded-md">
-                  <CalendarIcon className="mr-2 h-4 w-4" />
+                <div className="flex items-center justify-center w-full text-sm font-medium bg-muted p-2 rounded-md mt-1">
+                  <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
                   {format(selectedDate, "EEEE, MMMM d, yyyy")}
                 </div>
               )}
             </SheetHeader>
             
             <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0 w-full">
-              <TabsList className="grid w-full grid-cols-2 mb-2 flex-shrink-0">
-                <TabsTrigger value="time-selection">Select Time</TabsTrigger>
+              <TabsList className="grid w-full grid-cols-2 mb-1 flex-shrink-0">
+                <TabsTrigger value="time-selection" className="text-sm">Select Time</TabsTrigger>
                 <TabsTrigger 
                   value="reservation-details" 
                   disabled={!selectedTime}
-                  className="disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="disabled:opacity-50 disabled:cursor-not-allowed text-sm"
                 >
                   Details
                 </TabsTrigger>
               </TabsList>
-              
-              <TabsContent value="time-selection" className="mt-2 flex flex-col flex-1 min-h-0 w-full">
-                {systemSettings?.allowOverlapping && hasOverlappingReservations && (
-                  <div className="flex items-center space-x-2 mb-2 flex-shrink-0 w-full">
-                    <Switch
-                      id="show-overlapping"
-                      checked={showOverlappingReservations}
-                      onCheckedChange={setShowOverlappingReservations}
-                    />
-                    <Label htmlFor="show-overlapping" className="text-sm">Show overlapping reservations</Label>
-                  </div>
-                )}
-
+                <TabsContent value="time-selection" className="flex flex-col flex-1 min-h-0 w-full">
                 {!selectedDate ? (
                   <div className="flex flex-col items-center justify-center flex-1 text-center w-full">
                     <Clock className="h-12 w-12 text-muted-foreground mb-4" />
@@ -637,12 +706,10 @@ export default function HomePage() {
                       <Skeleton key={i} className="h-9 w-full" />
                     ))}
                   </div>
-                ) : (
-                  <div className="flex flex-col flex-1 min-h-0 overflow-hidden w-full">
+                ) : (                  <div className="flex flex-col flex-1 min-h-0 overflow-hidden w-full">
                     <TimeSlotGrid
                       timeSlots={timeSlots.map((slot) => ({
                         ...slot,
-                        occupancy: showOverlappingReservations ? slot.occupancy : undefined,
                         status: slot.status || (slot.available ? "available" : "unavailable"),
                       }))}
                       onSelectTimeSlot={handleTimeSlotSelect}
@@ -650,147 +717,142 @@ export default function HomePage() {
                       selectedTime={selectedTime || undefined}
                       selectedDate={selectedDate}
                       use12HourFormat={use12HourFormat}
-                      hasOverlappingReservations={showOverlappingReservations && hasOverlappingReservations}
+                      hasOverlappingReservations={hasOverlappingReservations}
+                      timeSlotSettings={timeSlotSettings}
+                      operationalHours={operationalHours}
                     />
                   </div>
-                )}
-
+                )}                
                 {selectedDate && selectedTime && (
-                  <div className="mt-6 flex gap-2 flex-shrink-0">
-                    <Button variant="outline" onClick={() => setIsSheetOpen(false)} className="flex-1">
+                  <div className="mt-4 flex gap-2 flex-shrink-0 sticky bottom-0 pt-2 bg-background border-t">
+                    <Button 
+                      variant="outline" 
+                      onClick={() => setIsSheetOpen(false)} 
+                      className="flex-1"
+                    >
                       Cancel
                     </Button>
-                    <Button onClick={() => setActiveTab("reservation-details")} className="flex-1">
+                    <Button 
+                      onClick={() => setActiveTab("reservation-details")} 
+                      className="flex-1 flex items-center justify-center"
+                    >
                       Next
+                      <ChevronRight className="ml-1 h-4 w-4" />
                     </Button>
                   </div>
                 )}
-              </TabsContent>
-              
-              <TabsContent value="reservation-details" className="mt-2 w-full">
+              </TabsContent>                
+              <TabsContent value="reservation-details" className="flex flex-col flex-1 min-h-0 w-full">
                 {selectedDate && selectedTime ? (
-                  <div className="space-y-4 w-full">
-                    <Alert className="mb-2 w-full">
-                      <Info className="h-4 w-4" />
-                      <AlertTitle>Gymnasium Hours</AlertTitle>
-                      <AlertDescription>
-                        The gymnasium is open from {formatTimeForDisplay(operationalHours.start)} to{" "}
-                        {formatTimeForDisplay(operationalHours.end)}. Reservations must end by closing time.
-                      </AlertDescription>
-                    </Alert>
-
-                    <Card className="bg-muted/30">
-                      <CardContent className="pt-6">
-                        <div className="space-y-4">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center">
-                              <Clock className="h-4 w-4 mr-2 text-primary" />
-                              <span className="font-medium">Start Time</span>
+                  <>
+                    {/* Scrollable content area */}
+                    <div className="flex-1 overflow-y-auto space-y-3 pt-1">
+                      <Alert className="w-full">
+                        <Info className="h-4 w-4" />
+                        <AlertTitle className="text-sm font-semibold">Gymnasium Hours</AlertTitle>
+                        <AlertDescription className="text-xs sm:text-sm">
+                          The gymnasium is open from {formatTimeForDisplay(operationalHours.start)} to{" "}
+                          {formatTimeForDisplay(operationalHours.end)}. Reservations must end by closing time.
+                        </AlertDescription>
+                      </Alert>                      <Card className="bg-muted/30">
+                        <CardContent className="py-3">
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center">
+                                <Clock className="h-4 w-4 mr-2 text-primary" />
+                                <span className="font-medium">Start Time</span>
+                              </div>
+                              <Badge variant="outline" className="bg-blue-50 text-blue-700">
+                                {formatTimeForDisplay(selectedTime)}
+                              </Badge>
                             </div>
-                            <Badge variant="outline" className="bg-blue-50 text-blue-700">
-                              {formatTimeForDisplay(selectedTime)}
-                            </Badge>
-                          </div>
 
-                          {(() => {
-                            const selectedSlot = timeSlots.find((slot) => slot.time === selectedTime)
-                            return selectedSlot && selectedSlot.occupancy !== undefined && selectedSlot.occupancy > 0 ? (
-                              <div className="flex items-center justify-between">
-                                <span className="text-sm text-muted-foreground">Current Bookings</span>
-                                <div className="flex items-center">
-                                  <Users className="h-3 w-3 mr-1 text-muted-foreground" />
-                                  <span className="text-sm">{selectedSlot.occupancy}</span>
+                            <div className="space-y-2">
+                              <div className="flex justify-between items-center">
+                                <Label htmlFor="duration">Duration</Label>
+                                <span className="text-xs text-muted-foreground">Max: {formatDuration(maxPossibleDuration)}</span>
+                              </div>
+                              <Select value={selectedDuration.toString()} onValueChange={handleDurationChange}>
+                                <SelectTrigger id="duration">
+                                  <SelectValue placeholder="Select duration" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {generateDurationOptions(maxPossibleDuration).map((duration) => (
+                                    <SelectItem key={duration} value={duration.toString()}>
+                                      {formatDuration(duration)}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+
+                              <div className="pt-2">
+                                <Progress value={(selectedDuration / maxPossibleDuration) * 100} className="h-2" />
+                                <div className="flex justify-between text-xs text-muted-foreground mt-1">
+                                  <span>{formatDuration(timeSlotSettings?.minDuration || 30)}</span>
+                                  <span>{formatDuration(maxPossibleDuration)}</span>
                                 </div>
                               </div>
-                            ) : null
-                          })()}
-
-                          <div className="space-y-2">
-                            <div className="flex justify-between items-center">
-                              <Label htmlFor="duration">Duration</Label>
-                              <span className="text-xs text-muted-foreground">Max: {formatDuration(maxPossibleDuration)}</span>
                             </div>
-                            <Select value={selectedDuration.toString()} onValueChange={handleDurationChange}>
-                              <SelectTrigger id="duration">
-                                <SelectValue placeholder="Select duration" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {generateDurationOptions(maxPossibleDuration).map((duration) => (
-                                  <SelectItem key={duration} value={duration.toString()}>
-                                    {formatDuration(duration)}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
 
-                            <div className="pt-2">
-                              <Progress value={(selectedDuration / maxPossibleDuration) * 100} className="h-2" />
-                              <div className="flex justify-between text-xs text-muted-foreground mt-1">
-                                <span>30m</span>
-                                <span>{formatDuration(maxPossibleDuration)}</span>
-                              </div>
-                            </div>
-                          </div>
+                            {hasOverlap && (
+                              <Alert variant="destructive">
+                                <AlertCircle className="h-4 w-4" />
+                                <AlertTitle>Scheduling Conflict</AlertTitle>
+                                <AlertDescription>
+                                  The selected duration overlaps with existing reservations. Please choose a shorter duration.
+                                </AlertDescription>
+                              </Alert>
+                            )}
 
-                          {hasOverlap && (
-                            <Alert variant="destructive">
-                              <AlertCircle className="h-4 w-4" />
-                              <AlertTitle>Scheduling Conflict</AlertTitle>
-                              <AlertDescription>
-                                The selected duration overlaps with existing reservations. Please choose a shorter duration.
-                              </AlertDescription>
-                            </Alert>
-                          )}
-
-                          {selectedEndTime && (
-                            <div className="p-3 bg-blue-50 text-blue-800 rounded-md">
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center">
-                                  <Clock className="h-4 w-4 mr-2" />
-                                  <span className="font-medium">Reservation Time</span>
+                            {selectedEndTime && (
+                              <div className="p-3 bg-blue-50 text-blue-800 rounded-md">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center">
+                                    <Clock className="h-4 w-4 mr-2" />
+                                    <span className="font-medium">Reservation Time</span>
+                                  </div>
+                                </div>
+                                <div className="mt-2 text-center">
+                                  <p className="text-lg font-semibold">
+                                    {formatTimeForDisplay(selectedTime)} - {formatTimeForDisplay(selectedEndTime)}
+                                  </p>
+                                  <p className="text-sm mt-1">{formatDuration(selectedDuration)}</p>
                                 </div>
                               </div>
-                              <div className="mt-2 text-center">
-                                <p className="text-lg font-semibold">
-                                  {formatTimeForDisplay(selectedTime)} - {formatTimeForDisplay(selectedEndTime)}
-                                </p>
-                                <p className="text-sm mt-1">{formatDuration(selectedDuration)}</p>
-                              </div>
-                            </div>
-                          )}
+                            )}
 
-                          {!user && (
-                            <Alert>
-                              <Info className="h-4 w-4" />
-                              <AlertTitle>Login Required</AlertTitle>
-                              <AlertDescription>
-                                You need to log in to complete your reservation. Click "Continue to Login" below.
-                              </AlertDescription>
-                            </Alert>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
+                            {!user && (
+                              <Alert>
+                                <Info className="h-4 w-4" />
+                                <AlertTitle>Login Required</AlertTitle>
+                                <AlertDescription>
+                                  You need to log in to complete your reservation. Click "Continue to Login" below.
+                                </AlertDescription>
+                              </Alert>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
 
-                    <div className="bg-muted/50 p-4 rounded-lg">
-                      <h3 className="font-medium mb-2">Reservation Summary</h3>
-                      <div className="space-y-2 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Date:</span>
-                          <span>{format(selectedDate, "EEEE, MMMM d, yyyy")}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Time:</span>
-                          <span>{selectedEndTime ? `${formatTimeForDisplay(selectedTime)} - ${formatTimeForDisplay(selectedEndTime)}` : formatTimeForDisplay(selectedTime)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Duration:</span>
-                          <span>{formatDuration(selectedDuration)}</span>
+                      <div className="bg-muted/50 p-4 rounded-lg">
+                        <h3 className="font-medium mb-2">Reservation Summary</h3>
+                        <div className="space-y-2 text-sm">
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Date:</span>
+                            <span>{format(selectedDate, "EEEE, MMMM d, yyyy")}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Time:</span>
+                            <span>{selectedEndTime ? `${formatTimeForDisplay(selectedTime)} - ${formatTimeForDisplay(selectedEndTime)}` : formatTimeForDisplay(selectedTime)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Duration:</span>
+                            <span>{formatDuration(selectedDuration)}</span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-
-                    <div className="flex gap-2">
+                    </div>                    {/* Sticky footer with buttons */}
+                    <div className="flex gap-2 mt-2 pt-3 border-t bg-background flex-shrink-0">
                       <Button 
                         variant="outline" 
                         onClick={() => setActiveTab("time-selection")} 
@@ -806,7 +868,7 @@ export default function HomePage() {
                         {user ? "Continue to Reservation" : "Continue to Login"}
                       </Button>
                     </div>
-                  </div>
+                  </>
                 ) : (
                   <div className="flex flex-col items-center justify-center py-12 text-center">
                     <Clock className="h-12 w-12 text-muted-foreground mb-4" />
