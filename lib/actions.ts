@@ -12,6 +12,7 @@ import type {
 import {
   createReservation,
   getReservations,
+  getReservationById,
   updateReservationStatus,
   deleteReservation,
   getUsers,
@@ -31,6 +32,13 @@ import {
   type ValidationResult,
   type TimeSlotValidation
 } from "./reservation-validator"
+import {
+  sendReservationSubmissionEmail,
+  sendApprovalEmail,
+  sendRejectionEmail,
+  sendCancellationEmail,
+  sendAdminNotification
+} from "./email"
 
 // Enhanced validation exports for UI components
 export { type ValidationResult, type TimeSlotValidation }
@@ -129,6 +137,27 @@ export async function submitReservation(request: ReservationRequest) {
     const reservationId = await createReservation(request)
     console.log("Reservation created with ID:", reservationId)
     
+    // Send email notifications
+    try {
+      const [emailSettings, reservationDetails] = await Promise.all([
+        getEmailConfiguration(),
+        getReservationById(reservationId)
+      ])
+      
+      if (reservationDetails) {
+        // Send confirmation email to user
+        await sendReservationSubmissionEmail(reservationDetails, emailSettings)
+        
+        // Send notification to admins
+        await sendAdminNotification(reservationDetails, emailSettings, 'created')
+        
+        console.log("Email notifications sent successfully")
+      }
+    } catch (emailError) {
+      console.error("Failed to send email notifications:", emailError)
+      // Don't fail the reservation creation if email fails
+    }
+    
     revalidatePath("/")
     revalidatePath("/admin")
     revalidatePath("/dashboard")
@@ -209,7 +238,31 @@ export async function getReservationList(
 
 export async function approveReservation(id: string) {
   try {
+    // Get reservation details before updating status
+    const reservationDetails = await getReservationById(id)
+    if (!reservationDetails) {
+      return { success: false, message: "Reservation not found" }
+    }
+
+    // Update reservation status
     await updateReservationStatus(id, "approved")
+    
+    // Send email notifications
+    try {
+      const emailSettings = await getEmailConfiguration()
+      
+      // Send approval email to user
+      await sendApprovalEmail(reservationDetails, emailSettings)
+      
+      // Send notification to admins
+      await sendAdminNotification(reservationDetails, emailSettings, 'updated')
+      
+      console.log("Approval email notifications sent successfully")
+    } catch (emailError) {
+      console.error("Failed to send approval email notifications:", emailError)
+      // Don't fail the approval if email fails
+    }
+    
     revalidatePath("/admin")
     return { success: true, message: "Reservation approved successfully" }
   } catch (error) {
@@ -218,9 +271,68 @@ export async function approveReservation(id: string) {
   }
 }
 
+export async function rejectReservation(id: string, reason?: string) {
+  try {
+    // Get reservation details before updating status
+    const reservationDetails = await getReservationById(id)
+    if (!reservationDetails) {
+      return { success: false, message: "Reservation not found" }
+    }
+
+    // Update reservation status
+    await updateReservationStatus(id, "rejected")
+    
+    // Send email notifications
+    try {
+      const emailSettings = await getEmailConfiguration()
+      
+      // Send rejection email to user
+      await sendRejectionEmail(reservationDetails, emailSettings, reason)
+      
+      // Send notification to admins
+      await sendAdminNotification(reservationDetails, emailSettings, 'updated')
+      
+      console.log("Rejection email notifications sent successfully")
+    } catch (emailError) {
+      console.error("Failed to send rejection email notifications:", emailError)
+      // Don't fail the rejection if email fails
+    }
+    
+    revalidatePath("/admin")
+    return { success: true, message: "Reservation rejected successfully" }
+  } catch (error) {
+    console.error("Error rejecting reservation:", error)
+    return { success: false, message: "Failed to reject reservation" }
+  }
+}
+
 export async function cancelReservation(id: string) {
   try {
+    // Get reservation details before updating status
+    const reservationDetails = await getReservationById(id)
+    if (!reservationDetails) {
+      return { success: false, message: "Reservation not found" }
+    }
+
+    // Update reservation status
     await updateReservationStatus(id, "cancelled")
+    
+    // Send email notifications
+    try {
+      const emailSettings = await getEmailConfiguration()
+      
+      // Send cancellation email to user
+      await sendCancellationEmail(reservationDetails, emailSettings)
+      
+      // Send notification to admins
+      await sendAdminNotification(reservationDetails, emailSettings, 'cancelled')
+      
+      console.log("Cancellation email notifications sent successfully")
+    } catch (emailError) {
+      console.error("Failed to send cancellation email notifications:", emailError)
+      // Don't fail the cancellation if email fails
+    }
+    
     revalidatePath("/admin")
     revalidatePath("/")
     return { success: true, message: "Reservation cancelled successfully" }
@@ -232,7 +344,24 @@ export async function cancelReservation(id: string) {
 
 export async function removeReservation(id: string) {
   try {
+    // Get reservation details before deletion for email notification
+    const reservationDetails = await getReservationById(id)
+    
+    // Delete the reservation
     await deleteReservation(id)
+    
+    // Send admin notification if reservation details were found
+    if (reservationDetails) {
+      try {
+        const emailSettings = await getEmailConfiguration()
+        await sendAdminNotification(reservationDetails, emailSettings, 'cancelled')
+        console.log("Deletion notification sent to admins")
+      } catch (emailError) {
+        console.error("Failed to send deletion notification:", emailError)
+        // Don't fail the deletion if email fails
+      }
+    }
+    
     revalidatePath("/admin")
     return { success: true, message: "Reservation deleted successfully" }
   } catch (error) {

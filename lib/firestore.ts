@@ -340,6 +340,28 @@ export async function deleteReservation(reservationId: string): Promise<void> {
   }
 }
 
+export async function getReservationById(reservationId: string): Promise<Reservation | null> {
+  try {
+    const docRef = doc(db, RESERVATIONS_COLLECTION, reservationId)
+    const docSnap = await getDoc(docRef)
+    
+    if (docSnap.exists()) {
+      const data = docSnap.data()
+      return {
+        id: docSnap.id,
+        ...data,
+        date: data.date.toDate(),
+        createdAt: data.createdAt.toDate(),
+        updatedAt: data.updatedAt?.toDate() || data.createdAt.toDate()
+      } as Reservation
+    }
+    return null
+  } catch (error) {
+    console.error("Error fetching reservation:", error)
+    throw new Error("Failed to fetch reservation")
+  }
+}
+
 export async function getReservationsForDate(date: Date): Promise<Reservation[]> {
   try {
     const startOfDay = new Date(date)
