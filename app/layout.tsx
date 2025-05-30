@@ -10,7 +10,7 @@ const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
   title: "Reservation System",
-  description: "A user-friendly reservation system with approval workflow"
+  description: "A user-friendly reservation system with approval workflow",
 }
 
 export default function RootLayout({

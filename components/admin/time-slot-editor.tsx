@@ -152,7 +152,7 @@ export function TimeSlotEditor({ timeSlotSettings, setTimeSlotSettings }: TimeSl
                         {daySchedule.timeSlots.map((slot) => (
                           <Card key={slot.id}>
                             <CardContent className="p-4">
-                              <div className="flex items-center space-x-2">
+                              <div className="flex items-start gap-3">
                                 <div className="grid flex-1 gap-2 grid-cols-1 sm:grid-cols-2">
                                   <div>
                                     <Label htmlFor={`start-${slot.id}`}>Start Time</Label>
@@ -215,8 +215,13 @@ export function TimeSlotEditor({ timeSlotSettings, setTimeSlotSettings }: TimeSl
                                     </Select>
                                   </div>
                                 </div>
-                                <div className="flex items-end pb-2">
-                                  <Button variant="ghost" size="icon" onClick={() => removeTimeSlot(day.id, slot.id)}>
+                                <div className="flex items-center pt-6">
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    onClick={() => removeTimeSlot(day.id, slot.id)}
+                                    className="text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/20"
+                                  >
                                     <Trash2 className="h-4 w-4" />
                                   </Button>
                                 </div>

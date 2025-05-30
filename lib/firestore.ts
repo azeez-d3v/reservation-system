@@ -1052,12 +1052,10 @@ function timeToMinutes(time: string): number {
 }
 
 // Default settings functions
-export function getDefaultSystemSettings(): SystemSettings {
-  return {
+export function getDefaultSystemSettings(): SystemSettings {  return {
     systemName: "Reservation System",
     organizationName: "Your Organization",
     contactEmail: "admin@example.com",
-    timeZone: "Asia/Manila",
     requireApproval: true,
     allowOverlapping: true,
     maxOverlappingReservations: 2,
@@ -1126,7 +1124,6 @@ function getDefaultEmailSettings(): EmailSettings {
   return {
     sendUserEmails: true,
     sendAdminEmails: true,
-    notificationRecipients: [],
     templates: {
       approval: "Dear {name},\n\nYour reservation request for {date} from {startTime} to {endTime} has been approved.\n\nPurpose: {purpose}\n\nThank you!",
       rejection: "Dear {name},\n\nWe regret to inform you that your reservation request for {date} from {startTime} to {endTime} has been rejected.\n\nPurpose: {purpose}\n\nPlease contact us if you have any questions.",

@@ -415,40 +415,6 @@ export function AdminSettings() {
     })
   }
 
-  const addNotificationRecipient = () => {
-    if (!emailSettings) return
-
-    setEmailSettings({
-      ...emailSettings,
-      notificationRecipients: [
-        ...emailSettings.notificationRecipients,
-        {
-          id: Date.now().toString(),
-          email: "",
-          name: "",
-        },
-      ],
-    })
-
-    toast({
-      title: "Recipient Added",
-      description: "A new notification recipient has been added. Remember to save your changes.",
-    })
-  }
-
-  const removeNotificationRecipient = (id: string) => {
-    if (!emailSettings) return
-
-    setEmailSettings({
-      ...emailSettings,
-      notificationRecipients: emailSettings.notificationRecipients.filter((recipient) => recipient.id !== id),
-    })
-
-    toast({
-      title: "Recipient Removed",
-      description: "The notification recipient has been removed. Remember to save your changes.",
-    })
-  }
 
   // Helper functions for reservation types
   const addReservationType = () => {
@@ -542,28 +508,7 @@ export function AdminSettings() {
                   type="email"
                   value={systemSettings.contactEmail}
                   onChange={(e) => setSystemSettings({ ...systemSettings, contactEmail: e.target.value })}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="timeZone">Time Zone</Label>
-                <Select
-                  value={systemSettings.timeZone}
-                  onValueChange={(value) => setSystemSettings({ ...systemSettings, timeZone: value })}
-                >
-                  <SelectTrigger id="timeZone">
-                    <SelectValue placeholder="Select time zone" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="America/New_York">Eastern Time (ET)</SelectItem>
-                    <SelectItem value="America/Chicago">Central Time (CT)</SelectItem>
-                    <SelectItem value="America/Denver">Mountain Time (MT)</SelectItem>
-                    <SelectItem value="America/Los_Angeles">Pacific Time (PT)</SelectItem>
-                    <SelectItem value="Europe/London">Greenwich Mean Time (GMT)</SelectItem>
-                    <SelectItem value="Europe/Paris">Central European Time (CET)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+                />              </div>
 
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
@@ -652,18 +597,19 @@ export function AdminSettings() {
             <CardHeader>
               <CardTitle>Reservation Types</CardTitle>
               <CardDescription>Configure the types of reservations that can be made.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
+            </CardHeader>            <CardContent className="space-y-4">
               {systemSettings.reservationTypes.map((type, index) => (
-                <div key={index} className="flex items-center space-x-2">
+                <div key={index} className="flex items-center gap-3">
                   <Input
                     value={type}
                     onChange={(e) => updateReservationType(index, e.target.value)}
+                    className="flex-1"
                   />
                   <Button
-                    variant="ghost"
-                    size="icon"
+                    variant="outline"
+                    size="sm"
                     onClick={() => removeReservationType(index)}
+                    className="text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/20"
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -718,10 +664,9 @@ export function AdminSettings() {
             </CardHeader>
             <CardContent className="space-y-4">
               {timeSlotSettings.blackoutDates.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No blackout dates configured.</p>
-              ) : (
+                <p className="text-sm text-muted-foreground">No blackout dates configured.</p>              ) : (
                 timeSlotSettings.blackoutDates.map((blackoutDate) => (
-                  <div key={blackoutDate.id} className="flex items-center space-x-2">
+                  <div key={blackoutDate.id} className="flex items-start gap-3">
                     <div className="grid flex-1 gap-2">
                       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                         <div>
@@ -763,8 +708,13 @@ export function AdminSettings() {
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-end pb-2">
-                      <Button variant="ghost" size="icon" onClick={() => removeBlackoutDate(blackoutDate.id)}>
+                    <div className="flex items-center pt-6">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => removeBlackoutDate(blackoutDate.id)}
+                        className="text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/20"
+                      >
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
@@ -916,73 +866,7 @@ export function AdminSettings() {
                   id="sendAdminEmails"
                   checked={emailSettings.sendAdminEmails}
                   onCheckedChange={(checked) => setEmailSettings({ ...emailSettings, sendAdminEmails: checked })}
-                />
-              </div>
-
-              <Separator />
-
-              <div className="space-y-2">
-                <Label>Notification Recipients</Label>
-                <p className="text-sm text-muted-foreground">
-                  Add email addresses that should receive notifications about reservations
-                </p>
-
-                {emailSettings.notificationRecipients.map((recipient) => (
-                  <div key={recipient.id} className="flex items-center space-x-2 mt-2">
-                    <div className="grid flex-1 gap-2">
-                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                        <div>
-                          <Label htmlFor={`name-${recipient.id}`} className="sr-only">
-                            Name
-                          </Label>
-                          <Input
-                            id={`name-${recipient.id}`}
-                            placeholder="Name"
-                            value={recipient.name}
-                            onChange={(e) => {
-                              const newRecipients = emailSettings.notificationRecipients.map((r) => {
-                                if (r.id === recipient.id) {
-                                  return { ...r, name: e.target.value }
-                                }
-                                return r
-                              })
-                              setEmailSettings({ ...emailSettings, notificationRecipients: newRecipients })
-                            }}
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor={`email-${recipient.id}`} className="sr-only">
-                            Email
-                          </Label>
-                          <Input
-                            id={`email-${recipient.id}`}
-                            type="email"
-                            placeholder="Email"
-                            value={recipient.email}
-                            onChange={(e) => {
-                              const newRecipients = emailSettings.notificationRecipients.map((r) => {
-                                if (r.id === recipient.id) {
-                                  return { ...r, email: e.target.value }
-                                }
-                                return r
-                              })
-                              setEmailSettings({ ...emailSettings, notificationRecipients: newRecipients })
-                            }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    <Button variant="ghost" size="icon" onClick={() => removeNotificationRecipient(recipient.id)}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-
-                <Button variant="outline" size="sm" onClick={addNotificationRecipient}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Recipient
-                </Button>
-              </div>
+                />              </div>
             </CardContent>
             <CardFooter>
               <Button 

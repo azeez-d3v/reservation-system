@@ -1,6 +1,6 @@
 "use server"
 
-import type { Reservation, EmailSettings } from "./types"
+import type { Reservation, EmailSettings, SystemSettings } from "./types"
 import { emailService } from "./email-service"
 import { format } from "date-fns"
 
@@ -244,9 +244,9 @@ Thank you for using our reservation system.`
   }
 }
 
-export async function sendAdminNotification(reservation: Reservation, emailSettings: EmailSettings, action: 'created' | 'updated' | 'cancelled' = 'created'): Promise<void> {
-  if (!emailSettings.sendAdminEmails || emailSettings.notificationRecipients.length === 0) {
-    console.log('Admin emails are disabled or no recipients configured, skipping admin notification')
+export async function sendAdminNotification(reservation: Reservation, emailSettings: EmailSettings, systemSettings: SystemSettings, action: 'created' | 'updated' | 'cancelled' = 'created'): Promise<void> {
+  if (!emailSettings.sendAdminEmails || !systemSettings.contactEmail) {
+    console.log('Admin emails are disabled or no contact email configured, skipping admin notification')
     return
   }
 
@@ -288,47 +288,44 @@ export async function sendAdminNotification(reservation: Reservation, emailSetti
       cancelled: '❌'
     }
 
-    // Send emails to all notification recipients
-    const emailPromises = emailSettings.notificationRecipients.map(recipient =>
-      emailService.sendEmail({
-        to: recipient.email,
-        subject: `${actionTitles[action]} - ${reservation.name}`,
-        text: emailContent,
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <h2 style="color: ${actionColors[action]}; margin-bottom: 20px;">
-              ${actionIcons[action]} ${actionTitles[action]}
-            </h2>
-            ${textToHtml(emailContent)}
-            <div style="background-color: #f8fafc; padding: 15px; border-radius: 5px; margin: 20px 0;">
-              <h3 style="margin: 0 0 10px 0; color: #374151;">Quick Actions:</h3>
-              <p style="margin: 0; color: #6b7280;">
-                ${action === 'created' 
-                  ? 'Log in to the admin panel to approve or reject this reservation.' 
-                  : action === 'updated'
-                  ? 'Check the admin panel for updated reservation details.'
-                  : 'This reservation has been cancelled and requires no further action.'}
-              </p>
-            </div>
-            <div style="background-color: #eff6ff; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #3b82f6;">
-              <p style="margin: 0; color: #1e40af; font-weight: 500;">
-                🔗 Reservation ID: ${reservation.id}
-              </p>
-            </div>
-            <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;">
-            <p style="color: #666; font-size: 14px;">
-              This is an automated message from the Reservation System.
+    // Send email to the system contact email
+    await emailService.sendEmail({
+      to: systemSettings.contactEmail,
+      subject: `${actionTitles[action]} - ${reservation.name}`,
+      text: emailContent,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: ${actionColors[action]}; margin-bottom: 20px;">
+            ${actionIcons[action]} ${actionTitles[action]}
+          </h2>
+          ${textToHtml(emailContent)}
+          <div style="background-color: #f8fafc; padding: 15px; border-radius: 5px; margin: 20px 0;">
+            <h3 style="margin: 0 0 10px 0; color: #374151;">Quick Actions:</h3>
+            <p style="margin: 0; color: #6b7280;">
+              ${action === 'created' 
+                ? 'Log in to the admin panel to approve or reject this reservation.' 
+                : action === 'updated'
+                ? 'Check the admin panel for updated reservation details.'
+                : 'This reservation has been cancelled and requires no further action.'}
             </p>
           </div>
-        `
-      })
-    )
+          <div style="background-color: #eff6ff; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #3b82f6;">
+            <p style="margin: 0; color: #1e40af; font-weight: 500;">
+              🔗 Reservation ID: ${reservation.id}
+            </p>
+          </div>
+          <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;">
+          <p style="color: #666; font-size: 14px;">
+            This is an automated message from the Reservation System.
+          </p>
+        </div>
+      `
+    })
 
-    await Promise.all(emailPromises)
-    console.log(`Admin notification emails sent successfully to ${emailSettings.notificationRecipients.length} recipients for ${action} action`)
+    console.log(`Admin notification email sent successfully to ${systemSettings.contactEmail} for ${action} action`)
   } catch (error) {
-    console.error('Failed to send admin notification emails:', error)
-    throw new Error('Failed to send admin notification emails')
+    console.error('Failed to send admin notification email:', error)
+    throw new Error('Failed to send admin notification email')
   }
 }
 

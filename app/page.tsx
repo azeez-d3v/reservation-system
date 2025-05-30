@@ -552,7 +552,7 @@ export default function HomePage() {
             <p className="text-xs text-muted-foreground pt-1">
               <span className="text-green-600">●</span> Available 
               <span className="text-amber-600 ml-2">●</span> Limited 
-              <span className="text-red-600 ml-2">●</span> Full
+              <span className="text-red-600 ml-2">●</span> Full | Closed
             </p>
           </AlertDescription>
         </Alert>

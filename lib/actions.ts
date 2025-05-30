@@ -136,11 +136,11 @@ export async function submitReservation(request: ReservationRequest) {
     
     const reservationId = await createReservation(request)
     console.log("Reservation created with ID:", reservationId)
-    
-    // Send email notifications
+      // Send email notifications
     try {
-      const [emailSettings, reservationDetails] = await Promise.all([
+      const [emailSettings, systemSettings, reservationDetails] = await Promise.all([
         getEmailConfiguration(),
+        getSettings(),
         getReservationById(reservationId)
       ])
       
@@ -149,7 +149,7 @@ export async function submitReservation(request: ReservationRequest) {
         await sendReservationSubmissionEmail(reservationDetails, emailSettings)
         
         // Send notification to admins
-        await sendAdminNotification(reservationDetails, emailSettings, 'created')
+        await sendAdminNotification(reservationDetails, emailSettings, systemSettings, 'created')
         
         console.log("Email notifications sent successfully")
       }
@@ -246,16 +246,18 @@ export async function approveReservation(id: string) {
 
     // Update reservation status
     await updateReservationStatus(id, "approved")
-    
-    // Send email notifications
+      // Send email notifications
     try {
-      const emailSettings = await getEmailConfiguration()
+      const [emailSettings, systemSettings] = await Promise.all([
+        getEmailConfiguration(),
+        getSettings()
+      ])
       
       // Send approval email to user
       await sendApprovalEmail(reservationDetails, emailSettings)
       
       // Send notification to admins
-      await sendAdminNotification(reservationDetails, emailSettings, 'updated')
+      await sendAdminNotification(reservationDetails, emailSettings, systemSettings, 'updated')
       
       console.log("Approval email notifications sent successfully")
     } catch (emailError) {
@@ -281,16 +283,18 @@ export async function rejectReservation(id: string, reason?: string) {
 
     // Update reservation status
     await updateReservationStatus(id, "rejected")
-    
-    // Send email notifications
+      // Send email notifications
     try {
-      const emailSettings = await getEmailConfiguration()
+      const [emailSettings, systemSettings] = await Promise.all([
+        getEmailConfiguration(),
+        getSettings()
+      ])
       
       // Send rejection email to user
       await sendRejectionEmail(reservationDetails, emailSettings, reason)
       
       // Send notification to admins
-      await sendAdminNotification(reservationDetails, emailSettings, 'updated')
+      await sendAdminNotification(reservationDetails, emailSettings, systemSettings, 'updated')
       
       console.log("Rejection email notifications sent successfully")
     } catch (emailError) {
@@ -316,16 +320,18 @@ export async function cancelReservation(id: string) {
 
     // Update reservation status
     await updateReservationStatus(id, "cancelled")
-    
-    // Send email notifications
+      // Send email notifications
     try {
-      const emailSettings = await getEmailConfiguration()
+      const [emailSettings, systemSettings] = await Promise.all([
+        getEmailConfiguration(),
+        getSettings()
+      ])
       
       // Send cancellation email to user
       await sendCancellationEmail(reservationDetails, emailSettings)
       
       // Send notification to admins
-      await sendAdminNotification(reservationDetails, emailSettings, 'cancelled')
+      await sendAdminNotification(reservationDetails, emailSettings, systemSettings, 'cancelled')
       
       console.log("Cancellation email notifications sent successfully")
     } catch (emailError) {
@@ -349,12 +355,14 @@ export async function removeReservation(id: string) {
     
     // Delete the reservation
     await deleteReservation(id)
-    
-    // Send admin notification if reservation details were found
+      // Send admin notification if reservation details were found
     if (reservationDetails) {
       try {
-        const emailSettings = await getEmailConfiguration()
-        await sendAdminNotification(reservationDetails, emailSettings, 'cancelled')
+        const [emailSettings, systemSettings] = await Promise.all([
+          getEmailConfiguration(),
+          getSettings()
+        ])
+        await sendAdminNotification(reservationDetails, emailSettings, systemSettings, 'cancelled')
         console.log("Deletion notification sent to admins")
       } catch (emailError) {
         console.error("Failed to send deletion notification:", emailError)
@@ -391,15 +399,13 @@ export async function getSettings(): Promise<SystemSettings> {
       // Return default settings if document doesn't exist
       const { getDefaultSystemSettings } = await import("./firestore")
       return getDefaultSystemSettings()
-    }
-  } catch (error) {
+    }  } catch (error) {
     console.error("Error fetching system settings:", error)
     // Return default settings if fetch fails
     return {
       systemName: "Reservation System",
       organizationName: "Your Organization", 
       contactEmail: "admin@example.com",
-      timeZone: "Asia/Manila",
       requireApproval: true,
       allowOverlapping: true,
       maxOverlappingReservations: 2,
@@ -613,12 +619,10 @@ export async function getEmailConfiguration(): Promise<EmailSettings> {
         ...(data?.updatedAt && { updatedAt: data.updatedAt.toDate().toISOString() })
       }
       return serializedData as EmailSettings
-    } else {
-      // Return default settings if document doesn't exist
+    } else {      // Return default settings if document doesn't exist
       return {
         sendUserEmails: true,
         sendAdminEmails: true,
-        notificationRecipients: [],
         templates: {
           approval: "Dear {name},\n\nYour reservation request for {date} from {startTime} to {endTime} has been approved.\n\nPurpose: {purpose}\n\nThank you!",
           rejection: "Dear {name},\n\nWe regret to inform you that your reservation request for {date} from {startTime} to {endTime} has been rejected.\n\nPurpose: {purpose}\n\nPlease contact us if you have any questions.",
@@ -627,12 +631,10 @@ export async function getEmailConfiguration(): Promise<EmailSettings> {
       }
     }
   } catch (error) {
-    console.error("Error fetching email settings:", error)
-    // Return default settings if fetch fails
+    console.error("Error fetching email settings:", error)    // Return default settings if fetch fails
     return {
       sendUserEmails: true,
       sendAdminEmails: true,
-      notificationRecipients: [],
       templates: {
         approval: "Dear {name},\n\nYour reservation request for {date} from {startTime} to {endTime} has been approved.\n\nPurpose: {purpose}\n\nThank you!",
         rejection: "Dear {name},\n\nWe regret to inform you that your reservation request for {date} from {startTime} to {endTime} has been rejected.\n\nPurpose: {purpose}\n\nPlease contact us if you have any questions.",

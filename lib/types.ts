@@ -61,7 +61,6 @@ export interface SystemSettings {
   systemName: string
   organizationName: string
   contactEmail: string
-  timeZone: string
   requireApproval: boolean
   allowOverlapping: boolean
   maxOverlappingReservations: number
@@ -74,14 +73,7 @@ export interface SystemSettings {
 export interface EmailSettings {
   sendUserEmails: boolean
   sendAdminEmails: boolean
-  notificationRecipients: NotificationRecipient[]
   templates: EmailTemplates
-}
-
-export interface NotificationRecipient {
-  id: string
-  name: string
-  email: string
 }
 
 export interface EmailTemplates {
