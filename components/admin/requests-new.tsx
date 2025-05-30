@@ -6,16 +6,16 @@ import { getReservationList } from "@/lib/actions"
 import type { Reservation } from "@/lib/types"
 
 export function AdminRequests() {
-  const [requests, setRequests] = useState<Reservation[]>([])
+  const [pendingRequests, setPendingRequests] = useState<Reservation[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
   const fetchRequests = async () => {
     setIsLoading(true)
     try {
       const data = await getReservationList("pending")
-      setRequests(data as Reservation[])
+      setPendingRequests(data as Reservation[])
     } catch (error) {
-      console.error("Failed to fetch requests:", error)
+      console.error("Failed to fetch pending requests:", error)
     } finally {
       setIsLoading(false)
     }
@@ -27,8 +27,8 @@ export function AdminRequests() {
 
   return (
     <AdminReservationList
-      reservations={requests}
-      emptyMessage="No pending requests found."
+      reservations={pendingRequests}
+      emptyMessage="No pending reservation requests found."
       isLoading={isLoading}
       onReservationUpdate={fetchRequests}
       showAdminActions={true}

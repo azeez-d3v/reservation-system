@@ -34,18 +34,17 @@ export function ReservationDetailsDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+    <Dialog open={open} onOpenChange={onOpenChange}>      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="absolute right-12 top-6">
+          <Badge 
+            variant="secondary"
+            className={statusColors[reservation.status]}
+          >
+            {reservation.status.charAt(0).toUpperCase() + reservation.status.slice(1)}
+          </Badge>
+        </div>
         <DialogHeader>
-          <DialogTitle className="flex items-center justify-between">
-            <span>Reservation Details</span>
-            <Badge 
-              variant="secondary"
-              className={statusColors[reservation.status]}
-            >
-              {reservation.status.charAt(0).toUpperCase() + reservation.status.slice(1)}
-            </Badge>
-          </DialogTitle>
+          <DialogTitle>Reservation Details</DialogTitle>
           <DialogDescription>
             Reservation ID: {reservation.id}
           </DialogDescription>

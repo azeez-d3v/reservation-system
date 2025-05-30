@@ -5,34 +5,34 @@ import { AdminReservationList } from "./admin-reservation-list"
 import { getReservationList } from "@/lib/actions"
 import type { Reservation } from "@/lib/types"
 
-export function AdminRequests() {
-  const [requests, setRequests] = useState<Reservation[]>([])
+export function AdminReservations() {
+  const [reservations, setReservations] = useState<Reservation[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
-  const fetchRequests = async () => {
+  const fetchReservations = async () => {
     setIsLoading(true)
     try {
-      const data = await getReservationList("pending")
-      setRequests(data as Reservation[])
+      const data = await getReservationList("approved")
+      setReservations(data as Reservation[])
     } catch (error) {
-      console.error("Failed to fetch requests:", error)
+      console.error("Failed to fetch reservations:", error)
     } finally {
       setIsLoading(false)
     }
   }
 
   useEffect(() => {
-    fetchRequests()
+    fetchReservations()
   }, [])
 
   return (
     <AdminReservationList
-      reservations={requests}
-      emptyMessage="No pending requests found."
+      reservations={reservations}
+      emptyMessage="No approved reservations found."
       isLoading={isLoading}
-      onReservationUpdate={fetchRequests}
+      onReservationUpdate={fetchReservations}
       showAdminActions={true}
-      type="requests"
+      type="reservations"
     />
   )
 }
