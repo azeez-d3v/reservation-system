@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react"
 import {
   format,
-  isWeekend,
   isBefore,
   addMonths,
   subMonths,
@@ -14,7 +13,8 @@ import {
   isSameDay,
 } from "date-fns"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
-import { getPublicAvailability } from "@/lib/actions"
+import { getDateAvailability } from "@/lib/date-availability"
+import { getPublicAvailability, getTimeSlots } from "@/lib/actions"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
 import { ChevronRight, ChevronLeft } from "lucide-react"
@@ -29,9 +29,26 @@ interface ReservationDatePickerProps {
 
 export function ReservationDatePicker({ selectedDate, onDateSelected, minBookableDate }: ReservationDatePickerProps) {
   const [availabilityMap, setAvailabilityMap] = useState<Record<string, string>>({})
+  const [timeSlotSettings, setTimeSlotSettings] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [selectedDateState, setSelectedDateState] = useState<Date | null>(selectedDate || null)
   const [currentMonth, setCurrentMonth] = useState(selectedDate || new Date())
+
+  // Fetch time slot settings on component mount
+  useEffect(() => {
+    const fetchTimeSlotSettings = async () => {
+      try {
+        const settings = await getTimeSlots()
+        setTimeSlotSettings(settings)
+        console.log("Date picker - Time slot settings loaded:", settings)
+        console.log("Date picker - Business hours:", settings?.businessHours)
+      } catch (error) {
+        console.error("Date picker - Failed to fetch time slot settings:", error)
+      }
+    }
+
+    fetchTimeSlotSettings()
+  }, [])
 
   // Fetch available dates for the current month
   useEffect(() => {
@@ -57,6 +74,10 @@ export function ReservationDatePicker({ selectedDate, onDateSelected, minBookabl
 
         if (abortController.signal.aborted) return;
         
+        console.log("Date picker - Availability response:", response)
+        console.log("Date picker - Available dates:", response.availableDates)
+        console.log("Date picker - Availability map:", response.availabilityMap)
+        
         setAvailabilityMap(response.availabilityMap || {})
       } catch (error) {
         console.error("Failed to fetch available dates:", error)
@@ -74,15 +95,9 @@ export function ReservationDatePicker({ selectedDate, onDateSelected, minBookabl
       abortController.abort();
     }
   }, [currentMonth, selectedDateState])
-
-  // Check if a date is available and get its status
-  const getDateAvailability = (date: Date) => {
-    if (!date || isNaN(date.getTime())) {
-      return "unavailable"
-    }
-
-    const dateString = format(date, "yyyy-MM-dd")
-    return availabilityMap[dateString] || "unavailable"
+  // Use shared date availability checker
+  const checkDateAvailability = (date: Date) => {
+    return getDateAvailability(date, timeSlotSettings, availabilityMap)
   }
 
   // Handle date selection
@@ -194,11 +209,16 @@ export function ReservationDatePicker({ selectedDate, onDateSelected, minBookabl
               {allDays.map((day) => {
                 const isCurrentMonth = isSameMonth(day, currentMonth)
                 const isSelected = selectedDateState ? isSameDay(day, selectedDateState) : false
-                const availability = isCurrentMonth ? getDateAvailability(day) : "unavailable"
+                const availability = isCurrentMonth ? checkDateAvailability(day) : "unavailable"
                 const isToday = isSameDay(day, new Date())
                 const isPast = isBefore(day, minBookableDate)
                 const isBookable =
-                  !isPast && availability !== "unavailable" && isCurrentMonth && !isWeekend(day)
+                  !isPast && availability !== "unavailable" && isCurrentMonth
+
+                // Debug log for problematic dates (Friday and Saturday)
+                if (isCurrentMonth && (day.getDay() === 5 || day.getDay() === 6)) {
+                  console.log(`Date picker - Day ${format(day, "yyyy-MM-dd")} (${day.getDay() === 5 ? 'Friday' : 'Saturday'}): availability=${availability}, isBookable=${isBookable}`)
+                }
 
                 return (
                   <div key={day.toString()} className="aspect-square p-1">
@@ -220,7 +240,6 @@ export function ReservationDatePicker({ selectedDate, onDateSelected, minBookabl
                           isCurrentMonth &&
                           availability === "unavailable" &&
                           !isPast &&
-                          !isWeekend(day) &&
                           "bg-red-100 hover:bg-red-200 text-red-800",
                         isToday && !isSelected && "border border-primary",
                         isPast && "opacity-50 cursor-not-allowed",

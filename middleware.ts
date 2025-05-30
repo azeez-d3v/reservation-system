@@ -31,7 +31,6 @@ export default withAuth(
         // Admin routes require admin role
         if (req.nextUrl.pathname.startsWith("/admin")) {
           const isAdmin = token.role === "admin"
-          console.log("Middleware - Admin route check:", { role: token.role, isAdmin })
           return isAdmin
         }
 

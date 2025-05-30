@@ -10,7 +10,6 @@ import {
   eachDayOfInterval,
   isSameMonth,
   isSameDay,
-  isWeekend,
   addWeeks,
   isBefore,
   parse,
@@ -21,6 +20,7 @@ import { ChevronLeft, ChevronRight, Clock, Info, CalendarIcon, Users, AlertCircl
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { getDateAvailability } from "@/lib/date-availability"
 import { getPublicAvailability, getSystemSettings, getEnhancedAvailability, getTimeSlots } from "@/lib/actions"
 import { TimeSlotGrid } from "@/components/calendar/time-slot-grid"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -44,8 +44,9 @@ export default function HomePage() {
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [selectedTime, setSelectedTime] = useState<string | null>(null)
-  const [selectedDuration, setSelectedDuration] = useState<number>(60) // Will be updated by settings
-    // Data state
+  const [selectedDuration, setSelectedDuration] = useState<number>(60)
+  
+  // Data state
   const [availableDates, setAvailableDates] = useState<string[]>([])
   const [availabilityMap, setAvailabilityMap] = useState<Record<string, string>>({})
   const [timeSlots, setTimeSlots] = useState<
@@ -80,7 +81,8 @@ export default function HomePage() {
   const [selectedEndTime, setSelectedEndTime] = useState<string | null>(null)
   const [maxPossibleDuration, setMaxPossibleDuration] = useState<number>(540)
   const [hasOverlap, setHasOverlap] = useState(false)
-    // Refs for cleanup
+  
+  // Refs for cleanup
   const datesFetchRef = useRef<AbortController | null>(null)
   const timeSlotsFetchRef = useRef<AbortController | null>(null)
   
@@ -116,8 +118,8 @@ export default function HomePage() {
   const formatBusinessHours = useCallback(() => {
     if (!timeSlotSettings?.businessHours) return []
 
-    const dayNames = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
-    const dayLabels = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
+    const dayLabels = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
     
     return dayNames.map((dayName, index) => {
       const daySchedule = timeSlotSettings.businessHours[dayName]
@@ -139,16 +141,15 @@ export default function HomePage() {
       }
     })
   }, [timeSlotSettings, formatTimeForDisplay])
+
   const generateDurationOptions = useCallback((maxDuration: number) => {
     const options = []
     const minDuration = timeSlotSettings?.minDuration || 30
     const interval = timeSlotSettings?.timeSlotInterval || 30
     const adminMaxDuration = timeSlotSettings?.maxDuration || 540
 
-    // Use the smaller of the passed maxDuration and admin's maxDuration
     const effectiveMaxDuration = Math.min(maxDuration, adminMaxDuration)
 
-    // Generate options based on admin settings
     for (let duration = minDuration; duration <= effectiveMaxDuration; duration += interval) {
       options.push(duration)
     }
@@ -158,6 +159,10 @@ export default function HomePage() {
     }
     return options
   }, [timeSlotSettings])
+  // Use shared date availability checker
+  const checkDateAvailability = useCallback((date: Date) => {
+    return getDateAvailability(date, timeSlotSettings, availabilityMap)
+  }, [availabilityMap, timeSlotSettings])
 
   // Fetch system settings - only once on mount
   useEffect(() => {
@@ -174,24 +179,28 @@ export default function HomePage() {
           setSystemSettings(settings)
           setTimeSlotSettings(timeSlotSettings)
           setUse12HourFormat(settings.use12HourFormat !== false)
+          
+          // Debug log the time slot settings
+          console.log("Time slot settings loaded:", timeSlotSettings)
+          console.log("Business hours:", timeSlotSettings?.businessHours)
         }
       } catch (error) {
         if (isMounted) {
           console.error("Failed to fetch system settings:", error)
-          setError("Failed to load system settings. Please try again later.")        }
+          setError("Failed to load system settings. Please try again later.")
+        }
       }
     }
 
     fetchSettings()
-      return () => {
+    return () => {
       isMounted = false
     }
-  }, []) // Only run once on mount
+  }, [])
 
   // Update default duration based on time slot settings
   useEffect(() => {
     if (timeSlotSettings && selectedDuration === 60) {
-      // Only update if still at default value
       const minDuration = timeSlotSettings.minDuration || 60
       setSelectedDuration(minDuration)
     }
@@ -213,7 +222,6 @@ export default function HomePage() {
           end: lastSlot.end,
         })
       } else {
-        // Default operational hours if no schedule is found
         setOperationalHours({ start: "08:00", end: "17:00" })
       }
     }
@@ -221,7 +229,6 @@ export default function HomePage() {
 
   // Fetch available dates for the current month
   useEffect(() => {
-    // Cancel previous request
     if (datesFetchRef.current) {
       datesFetchRef.current.abort()
     }
@@ -247,6 +254,10 @@ export default function HomePage() {
           throw new Error("Invalid response from server")
         }
 
+        console.log("Availability response:", response)
+        console.log("Available dates:", response.availableDates)
+        console.log("Availability map:", response.availabilityMap)
+
         setAvailableDates(response.availableDates || [])
         setAvailabilityMap(response.availabilityMap || {})
       } catch (error) {
@@ -267,7 +278,7 @@ export default function HomePage() {
       abortController.abort()
       datesFetchRef.current = null
     }
-  }, [currentMonth]) // Only depend on currentMonth
+  }, [currentMonth])
 
   // Fetch time slots when a date is selected
   useEffect(() => {
@@ -277,21 +288,20 @@ export default function HomePage() {
       return
     }
     
-    // Cancel previous request
     if (timeSlotsFetchRef.current) {
       timeSlotsFetchRef.current.abort()
     }
     
     const abortController = new AbortController()
     timeSlotsFetchRef.current = abortController
-      const fetchTimeSlots = async () => {
+    
+    const fetchTimeSlots = async () => {
       if (abortController.signal.aborted) return
       
       setIsLoadingTimeSlots(true)
       setError(null)
       
       try {
-        // Use enhanced availability for better data
         const response = await getEnhancedAvailability(selectedDate)
         
         if (abortController.signal.aborted) return
@@ -304,7 +314,6 @@ export default function HomePage() {
 
         const slots = response.timeSlots || []
 
-        // Sort the time slots chronologically
         const sortedSlots = [...slots].sort((a, b) => {
           const timeA = a.time.split(":").map(Number)
           const timeB = b.time.split(":").map(Number)
@@ -315,7 +324,6 @@ export default function HomePage() {
           return timeA[1] - timeB[1]
         })
 
-        // Map to expected format for TimeSlotGrid
         const mappedSlots = sortedSlots.map(slot => ({
           time: slot.time,
           available: slot.available,
@@ -355,7 +363,7 @@ export default function HomePage() {
       abortController.abort()
       timeSlotsFetchRef.current = null
     }
-  }, [selectedDate]) // Only depend on selectedDate
+  }, [selectedDate])
 
   // Calculate max duration and end time when time is selected
   useEffect(() => {
@@ -366,19 +374,18 @@ export default function HomePage() {
     const minutesUntilClose = differenceInMinutes(gymCloseTime, startTimeObj)
     const calculatedMaxDuration = minutesUntilClose > 0 ? minutesUntilClose : 0
     
-    setMaxPossibleDuration(calculatedMaxDuration)    // Adjust selected duration if it exceeds the maximum
+    setMaxPossibleDuration(calculatedMaxDuration)
+    
     if (selectedDuration > calculatedMaxDuration) {
       const interval = timeSlotSettings?.timeSlotInterval || 30
       const newDuration = Math.floor(calculatedMaxDuration / interval) * interval
       setSelectedDuration(newDuration)
     }
 
-    // Calculate end time based on selected duration
     const endTimeObj = addMinutes(startTimeObj, selectedDuration)
     const calculatedEndTime = format(endTimeObj, "HH:mm")
     setSelectedEndTime(calculatedEndTime)
 
-    // Check for overlaps with existing bookings
     const startIndex = timeSlots.findIndex((slot) => slot.time === selectedTime)
     const endIndex = timeSlots.findIndex((slot) => slot.time === calculatedEndTime)
 
@@ -426,13 +433,6 @@ export default function HomePage() {
       monthEnd
     }
   }, [currentMonth])
-
-  // Date availability checker - memoized
-  const getDateAvailability = useCallback((date: Date) => {
-    if (!date) return "unavailable"
-    const dateString = format(date, "yyyy-MM-dd")
-    return availabilityMap[dateString] || "unavailable"
-  }, [availabilityMap])
 
   // Event handlers - memoized
   const handleDateSelect = useCallback((date: Date) => {
@@ -531,7 +531,9 @@ export default function HomePage() {
             <AlertTitle>Error</AlertTitle>
             <AlertDescription>{error}</AlertDescription>
           </Alert>
-        )}        <Alert className="mb-4">
+        )}
+
+        <Alert className="mb-4">
           <Clock className="h-4 w-4" />
           <AlertTitle className="text-sm font-medium">Gymnasium Hours</AlertTitle>
           <AlertDescription className="text-xs space-y-2">
@@ -593,21 +595,23 @@ export default function HomePage() {
 
                 {/* Calendar days */}
                 {isLoadingDates
-                  ? // Loading skeleton
-                    Array.from({ length: 35 }).map((_, i) => (
+                  ? Array.from({ length: 35 }).map((_, i) => (
                       <div key={i} className="aspect-square p-1">
                         <Skeleton className="h-full w-full rounded-md" />
                       </div>
                     ))
-                  : // Actual calendar days
-                    allDays.map((day) => {
+                  : allDays.map((day) => {
                       const isCurrentMonth = isSameMonth(day, currentMonth)
                       const isSelected = selectedDate ? isSameDay(day, selectedDate) : false
-                      const availability = isCurrentMonth ? getDateAvailability(day) : "unavailable"
+                      const availability = isCurrentMonth ? checkDateAvailability(day) : "unavailable"
                       const isToday = isSameDay(day, new Date())
                       const isPast = isBefore(day, minBookableDate)
-                      const isBookable =
-                        !isPast && availability !== "unavailable" && isCurrentMonth && !isWeekend(day)
+                      const isBookable = !isPast && availability !== "unavailable" && isCurrentMonth
+
+                      // Debug log for problematic dates
+                      if (isCurrentMonth && (day.getDay() === 5 || day.getDay() === 6)) {
+                        console.log(`Day ${format(day, "yyyy-MM-dd")} (${day.getDay() === 5 ? 'Friday' : 'Saturday'}): availability=${availability}, isBookable=${isBookable}`)
+                      }
 
                       return (
                         <div key={day.toString()} className="aspect-square p-1">
@@ -615,20 +619,20 @@ export default function HomePage() {
                             className={cn(
                               "h-full w-full rounded-md flex items-center justify-center text-sm transition-colors",
                               isCurrentMonth ? "text-foreground" : "text-muted-foreground opacity-50",
-                              isSelected && "bg-primary text-primary-foreground",                        !isSelected &&
-                          isBookable &&
-                          availability === "available" &&
-                          "bg-green-100 hover:bg-green-200 text-green-800",
-                        !isSelected &&
-                          isBookable &&
-                          availability === "limited" &&
-                          "bg-amber-100 hover:bg-amber-200 text-amber-800",
+                              isSelected && "bg-primary text-primary-foreground",
+                              !isSelected &&
+                                isBookable &&
+                                availability === "available" &&
+                                "bg-green-100 hover:bg-green-200 text-green-800",
+                              !isSelected &&
+                                isBookable &&
+                                availability === "limited" &&
+                                "bg-amber-100 hover:bg-amber-200 text-amber-800",
                               !isSelected && !isBookable && isCurrentMonth && "bg-muted hover:bg-muted/80",
                               !isSelected &&
                                 isCurrentMonth &&
                                 availability === "unavailable" &&
                                 !isPast &&
-                                !isWeekend(day) &&
                                 "bg-red-100 hover:bg-red-200 text-red-800",
                               isToday && !isSelected && "border border-primary",
                               isPast && "opacity-50 cursor-not-allowed",
@@ -668,7 +672,9 @@ export default function HomePage() {
               </div>
             </div>
           </CardContent>
-        </Card>        {/* Reservation Sheet - Completely Redesigned */}
+        </Card>
+        
+        {/* Reservation Sheet - Completely Redesigned */}
         <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
           <SheetContent className="w-full sm:max-w-lg p-0 flex flex-col overflow-hidden">            {/* Header with Progress */}
             <div className="bg-gradient-to-r from-primary/5 to-primary/10 border-b">

@@ -873,9 +873,7 @@ export async function getAvailableTimeSlots(
     
     if (isBlackoutDate) {
       return []
-    }
-    
-    // Get day schedule
+    }    // Get day schedule
     const dayOfWeek = date.getDay()
     const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
     const daySchedule = timeSlotSettings.businessHours[dayNames[dayOfWeek]]
