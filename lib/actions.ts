@@ -419,7 +419,7 @@ export async function rejectReservation(id: string, reason?: string) {
   }
 }
 
-export async function cancelReservation(id: string) {
+export async function cancelReservation(id: string, cancelledBy: 'user' | 'admin' = 'admin') {
   try {
     // Get reservation details before updating status
     const reservationDetails = await getReservationById(id)
@@ -436,7 +436,7 @@ export async function cancelReservation(id: string) {
         // Add user cancellation email task (if enabled)
       if (emailSettings.sendUserEmails) {
         emailTasks.push(
-          sendCancellationEmail(reservationDetails, emailSettings)
+          sendCancellationEmail(reservationDetails, emailSettings, cancelledBy)
             .then(() => console.log("User cancellation email sent successfully"))
             .catch(error => console.error("Failed to send user cancellation email:", error))
         )

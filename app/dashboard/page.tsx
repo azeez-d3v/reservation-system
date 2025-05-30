@@ -20,47 +20,48 @@ export default function DashboardPage() {
   })
   const [stats, setStats] = useState<any>(null)
   const [isLoadingData, setIsLoadingData] = useState(true)
-
   useEffect(() => {
     if (!isLoading && !user) {
       redirect("/login")
     }
 
     if (user) {
-      const fetchData = async () => {
-        setIsLoadingData(true)
-        try {
-          console.log("User object:", user)
-          console.log("User ID:", user.id)
-          console.log("User email:", user.email)
-          const [userReservations, userStats] = await Promise.all([getUserReservations(user.id), getUserStats(user.id)])
-          console.log("Fetched reservations:", userReservations)
-          console.log("Fetched stats:", userStats)
-          
-          // Transform the flat array of reservations into categorized groups
-          const now = new Date()
-          const categorizedReservations = {
-            active: userReservations.filter(r => r.status === "approved" && new Date(r.date) >= now),
-            pending: userReservations.filter(r => r.status === "pending"),
-            past: userReservations.filter(r => 
-              (r.status === "approved" && new Date(r.date) < now) || 
-              r.status === "rejected" || 
-              r.status === "cancelled"
-            ),
-          }
-          
-          setReservations(categorizedReservations)
-          setStats(userStats)
-        } catch (error) {
-          console.error("Failed to fetch user data:", error)
-        } finally {
-          setIsLoadingData(false)
-        }
-      }
-
       fetchData()
     }
   }, [user, isLoading])
+
+  const fetchData = async () => {
+    if (!user) return
+    
+    setIsLoadingData(true)
+    try {
+      console.log("User object:", user)
+      console.log("User ID:", user.id)
+      console.log("User email:", user.email)
+      const [userReservations, userStats] = await Promise.all([getUserReservations(user.id), getUserStats(user.id)])
+      console.log("Fetched reservations:", userReservations)
+      console.log("Fetched stats:", userStats)
+      
+      // Transform the flat array of reservations into categorized groups
+      const now = new Date()
+      const categorizedReservations = {
+        active: userReservations.filter(r => r.status === "approved" && new Date(r.date) >= now),
+        pending: userReservations.filter(r => r.status === "pending"),
+        past: userReservations.filter(r => 
+          (r.status === "approved" && new Date(r.date) < now) || 
+          r.status === "rejected" || 
+          r.status === "cancelled"
+        ),
+      }
+      
+      setReservations(categorizedReservations)
+      setStats(userStats)
+    } catch (error) {
+      console.error("Failed to fetch user data:", error)
+    } finally {
+      setIsLoadingData(false)
+    }
+  }
 
   if (isLoading) {
     return <div className="container py-10">Loading...</div>
@@ -95,12 +96,12 @@ export default function DashboardPage() {
             <CalendarDays className="mr-2 h-4 w-4" />
             Past
           </TabsTrigger>
-        </TabsList>
-        <TabsContent value="active" className="space-y-4">
+        </TabsList>        <TabsContent value="active" className="space-y-4">
           <ReservationList
             reservations={reservations.active}
             emptyMessage="You have no active reservations."
             isLoading={isLoadingData}
+            onReservationUpdate={fetchData}
           />
         </TabsContent>
         <TabsContent value="pending" className="space-y-4">
@@ -108,6 +109,7 @@ export default function DashboardPage() {
             reservations={reservations.pending}
             emptyMessage="You have no pending reservation requests."
             isLoading={isLoadingData}
+            onReservationUpdate={fetchData}
           />
         </TabsContent>
         <TabsContent value="past" className="space-y-4">
@@ -115,6 +117,7 @@ export default function DashboardPage() {
             reservations={reservations.past}
             emptyMessage="You have no past reservations."
             isLoading={isLoadingData}
+            onReservationUpdate={fetchData}
           />
         </TabsContent>
       </Tabs>
