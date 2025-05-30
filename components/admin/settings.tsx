@@ -22,6 +22,7 @@ import type { TimeSlotSettings, SystemSettings, EmailSettings } from "@/lib/type
 import { Separator } from "@/components/ui/separator"
 import { Plus, Trash2, Save } from "lucide-react"
 import { TimeSlotEditor } from "@/components/admin/time-slot-editor"
+import { AdminUsers } from "@/components/admin/users"
 
 export function AdminSettings() {
   const { toast } = useToast()
@@ -474,6 +475,7 @@ export function AdminSettings() {
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="timeslots">Time Slots</TabsTrigger>
           <TabsTrigger value="email">Email</TabsTrigger>
+          <TabsTrigger value="users">Users</TabsTrigger>
         </TabsList>
 
         <TabsContent value="general" className="space-y-6">
@@ -1033,6 +1035,20 @@ export function AdminSettings() {
                 {isSaving ? "Saving..." : hasEmailChanges() ? "Save Changes" : "No Changes"}
               </Button>
             </CardFooter>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="users" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>User Management</CardTitle>
+              <CardDescription>
+                Manage user accounts, roles, and access permissions. You can enable/disable user access and change user roles.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-6">
+              <AdminUsers />
+            </CardContent>
           </Card>
         </TabsContent>
       </Tabs>

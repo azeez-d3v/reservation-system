@@ -1,9 +1,10 @@
 "use client"
 
+import { useCallback } from "react"
 import { useSession, signIn, signOut } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/components/ui/use-toast"
-import { getUsers, updateUserStatus as updateUserStatusFirestore, updateUser as updateUserFirestore } from "@/lib/firestore"
+import { getUsers, updateUserStatus as updateUserStatusFirestore, updateUser as updateUserFirestore, updateUserRole as updateUserRoleFirestore } from "@/lib/firestore"
 import type { User } from "@/lib/types"
 
 export function useAuth() {
@@ -38,10 +39,10 @@ export function useAuth() {
         title: "Logout failed",
         description: "There was an error signing you out.",
         variant: "destructive",
-      })
-    }
+      })    }
   }
-  const getAllUsers = async (): Promise<User[]> => {
+
+  const getAllUsers = useCallback(async (): Promise<User[]> => {
     try {
       return await getUsers()
     } catch (error) {
@@ -52,9 +53,9 @@ export function useAuth() {
         variant: "destructive",
       })
       return []
-    }
-  }
-  const updateUserStatus = async (userId: string, status: "active" | "inactive") => {
+    }  }, [toast])
+
+  const updateUserStatus = useCallback(async (userId: string, status: "active" | "inactive") => {
     try {
       await updateUserStatusFirestore(userId, status)
 
@@ -75,11 +76,11 @@ export function useAuth() {
         variant: "destructive",
       })
     }
-  }
-  const updateUser = async (userData: Partial<User> & { id: string }) => {
+  }, [user?.email, logout, toast])
+  const updateUser = useCallback(async (userData: Partial<User> & { id: string }) => {
     try {
       await updateUserFirestore(userData.id, userData)
-
+      
       toast({
         title: "User updated",
         description: "User information has been updated successfully.",
@@ -92,7 +93,25 @@ export function useAuth() {
         variant: "destructive",
       })
     }
-  }
+  }, [toast])
+
+  const updateUserRole = useCallback(async (userId: string, role: "admin" | "user") => {
+    try {
+      await updateUserRoleFirestore(userId, role)
+
+      toast({
+        title: "User role updated",
+        description: `User role has been updated to ${role}.`,
+      })
+    } catch (error) {
+      console.error("Error updating user role:", error)
+      toast({
+        title: "Update failed",
+        description: "Failed to update user role.",
+        variant: "destructive",
+      })
+    }
+  }, [toast])
 
   return {
     user,
@@ -103,5 +122,6 @@ export function useAuth() {
     getAllUsers,
     updateUserStatus,
     updateUser,
+    updateUserRole,
   }
 }

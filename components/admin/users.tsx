@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Search, UserX, UserCheck } from "lucide-react"
+import { Search, UserX, UserCheck, Settings } from "lucide-react"
 import { format } from "date-fns"
 import {
   AlertDialog,
@@ -22,21 +22,36 @@ import { useToast } from "@/components/ui/use-toast"
 import type { User } from "@/lib/types"
 
 export function AdminUsers() {
-  const { getAllUsers, updateUserStatus, user: currentUser } = useAuth()
+  const { getAllUsers, updateUserStatus, updateUserRole, user: currentUser } = useAuth()
   const { toast } = useToast()
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [showDisableDialog, setShowDisableDialog] = useState(false)
   const [showEnableDialog, setShowEnableDialog] = useState(false)
+  const [showRoleDialog, setShowRoleDialog] = useState(false)
+  const [newRole, setNewRole] = useState<"admin" | "user">("user")
   const [users, setUsers] = useState<User[]>([])
   const [isLoading, setIsLoading] = useState(true)
+
+  const refreshUsers = async () => {
+    try {
+      const fetchedUsers = await getAllUsers()
+      setUsers(fetchedUsers)
+    } catch (error) {
+      console.error("Failed to refresh users:", error)
+      toast({
+        title: "Error",
+        description: "Failed to refresh users.",
+        variant: "destructive",
+      })
+    }
+  }
 
   useEffect(() => {
     async function fetchUsers() {
       try {
         setIsLoading(true)
-        const fetchedUsers = await getAllUsers()
-        setUsers(fetchedUsers)
+        await refreshUsers()
       } catch (error) {
         console.error("Failed to fetch users:", error)
         toast({
@@ -50,7 +65,7 @@ export function AdminUsers() {
     }
 
     fetchUsers()
-  }, [getAllUsers, toast])
+  }, [])
 
   const filteredUsers = users.filter(
     (user: User) =>
@@ -68,13 +83,18 @@ export function AdminUsers() {
     setShowEnableDialog(true)
   }
 
+  const handleRoleChange = (user: User) => {
+    setSelectedUser(user)
+    setNewRole(user.role === "admin" ? "user" : "admin")
+    setShowRoleDialog(true)
+  }
+
   const confirmDisableUser = async () => {
     if (selectedUser) {
       try {
         await updateUserStatus(selectedUser.email, "inactive")
         // Refresh users list
-        const updatedUsers = await getAllUsers()
-        setUsers(updatedUsers)
+        await refreshUsers()
       } catch (error) {
         console.error("Failed to disable user:", error)
       }
@@ -87,12 +107,24 @@ export function AdminUsers() {
       try {
         await updateUserStatus(selectedUser.email, "active")
         // Refresh users list
-        const updatedUsers = await getAllUsers()
-        setUsers(updatedUsers)
+        await refreshUsers()
       } catch (error) {
         console.error("Failed to enable user:", error)
       }
       setShowEnableDialog(false)
+    }
+  }
+
+  const confirmRoleChange = async () => {
+    if (selectedUser) {
+      try {
+        await updateUserRole(selectedUser.id, newRole)
+        // Refresh users list
+        await refreshUsers()
+      } catch (error) {
+        console.error("Failed to update user role:", error)
+      }
+      setShowRoleDialog(false)
     }
   }
 
@@ -151,6 +183,15 @@ export function AdminUsers() {
                     <div className="flex justify-end gap-2">
                       {user.id !== currentUser?.id && (
                         <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleRoleChange(user)}
+                            className="text-blue-600 hover:bg-blue-50"
+                          >
+                            <Settings className="mr-2 h-4 w-4" />
+                            {user.role === "admin" ? "Make User" : "Make Admin"}
+                          </Button>
                           {user.status === "active" ? (
                             <Button
                               variant="outline"
@@ -183,16 +224,18 @@ export function AdminUsers() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Disable User</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to disable this user? They will no longer be able to log in or make reservations.
-              {selectedUser && (
-                <div className="mt-2 p-3 border rounded-md bg-muted/50">
-                  <div>
-                    <strong>{selectedUser.name}</strong>
+            <AlertDialogDescription asChild>
+              <div>
+                <p>Are you sure you want to disable this user? They will no longer be able to log in or make reservations.</p>
+                {selectedUser && (
+                  <div className="mt-2 p-3 border rounded-md bg-muted/50">
+                    <div>
+                      <strong>{selectedUser.name}</strong>
+                    </div>
+                    <div className="text-sm">{selectedUser.email}</div>
                   </div>
-                  <div className="text-sm">{selectedUser.email}</div>
-                </div>
-              )}
+                )}
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -212,21 +255,55 @@ export function AdminUsers() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Enable User</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to enable this user? They will be able to log in and make reservations again.
-              {selectedUser && (
-                <div className="mt-2 p-3 border rounded-md bg-muted/50">
-                  <div>
-                    <strong>{selectedUser.name}</strong>
+            <AlertDialogDescription asChild>
+              <div>
+                <p>Are you sure you want to enable this user? They will be able to log in and make reservations again.</p>
+                {selectedUser && (
+                  <div className="mt-2 p-3 border rounded-md bg-muted/50">
+                    <div>
+                      <strong>{selectedUser.name}</strong>
+                    </div>
+                    <div className="text-sm">{selectedUser.email}</div>
                   </div>
-                  <div className="text-sm">{selectedUser.email}</div>
-                </div>
-              )}
+                )}
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={confirmEnableUser}>Enable User</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Role Management Dialog */}
+      <AlertDialog open={showRoleDialog} onOpenChange={setShowRoleDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Update User Role</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div>
+                <p>Are you sure you want to change the role of this user?</p>
+                {selectedUser && (
+                  <div className="mt-2 p-3 border rounded-md bg-muted/50">
+                    <div>
+                      <strong>{selectedUser.name}</strong>
+                    </div>
+                    <div className="text-sm">{selectedUser.email}</div>
+                    <div className="text-sm mt-2">
+                      <strong>Current Role:</strong> {selectedUser.role === "admin" ? "Admin" : "User"}
+                    </div>
+                    <div className="text-sm">
+                      <strong>New Role:</strong> {newRole === "admin" ? "Admin" : "User"}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmRoleChange}>Update Role</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

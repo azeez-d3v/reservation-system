@@ -7,7 +7,7 @@ import { useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useAuth } from "@/hooks/use-auth"
-import { Loader2, CalendarDays, AlertCircle } from "lucide-react"
+import { Loader2, ShieldCheck, CalendarDays, AlertCircle, ShieldAlert, Mail } from "lucide-react"
 import { format } from "date-fns"
 
 export default function LoginPage() {
@@ -70,10 +70,10 @@ export default function LoginPage() {
         {/* Header */}
         <div className="text-center mb-6">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 mb-3">
-            <CalendarDays className="w-6 h-6 text-primary" />
+            <ShieldCheck className="w-6 h-6 text-primary" />
           </div>
           <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100 mb-2">
-            Welcome back
+            Authentication
           </h1>
           <p className="text-slate-600 dark:text-slate-400">
             Sign in with your LICS Google account
@@ -92,10 +92,26 @@ export default function LoginPage() {
 
         {error === "AccessDenied" && (
           <Alert variant="destructive" className="mb-4 border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription className="text-red-800 dark:text-red-200">
-              Access denied. Only email addresses with @leadersics.edu.ph domain are allowed to sign in.
-            </AlertDescription>
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <ShieldAlert className="h-5 w-5 text-red-600 dark:text-red-400" />
+              </div>
+              <div className="ml-3 flex-1">
+                <h3 className="text-sm font-semibold text-red-800 dark:text-red-200 mb-1">
+                  Access Denied
+                </h3>
+                <AlertDescription className="text-red-700 dark:text-red-300 text-sm leading-relaxed">
+                  Your account doesn't have permission to access this system.
+                </AlertDescription>
+                <div className="mt-3 flex items-start space-x-2">
+                  <Mail className="h-4 w-4 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
+                  <div className="text-xs text-red-600 dark:text-red-400">
+                    <p className="font-medium mb-1">Need help?</p>
+                    <p>Contact your administrator if you believe this is an error.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
           </Alert>
         )}
 

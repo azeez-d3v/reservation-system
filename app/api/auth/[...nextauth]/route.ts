@@ -76,8 +76,7 @@ export const authOptions: NextAuthOptions = {
         try {
           // Ensure the user document exists in our custom collection
           const userDoc = await adminDb.collection("users").doc(user.email).get()
-          
-          if (!userDoc.exists) {
+            if (!userDoc.exists) {
             // Create new user document
             await adminDb.collection("users").doc(user.email).set({
               name: user.name,
@@ -89,6 +88,13 @@ export const authOptions: NextAuthOptions = {
               updatedAt: new Date(),
             })
           } else {
+            // Check if user is active before allowing sign in
+            const userData = userDoc.data()
+            if (userData?.status === "inactive") {
+              console.log(`Sign in denied for email: ${user.email} - User is inactive`)
+              return false
+            }
+            
             // Update last login
             await adminDb.collection("users").doc(user.email).update({
               lastLoginAt: new Date(),

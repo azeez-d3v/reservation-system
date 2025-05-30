@@ -39,6 +39,7 @@ import {
   sendCancellationEmail,
   sendAdminNotification
 } from "./email"
+import { setUserRole, getUserRole } from "./admin-utils"
 
 // Helper function to get email and system settings consistently
 export async function getNotificationSettings() {
@@ -828,14 +829,23 @@ export async function updateUser(id: string, status: "active" | "inactive") {
   }
 }
 
-export async function removeUser(id: string) {
+export async function updateUserRole(email: string, role: "admin" | "user") {
   try {
-    await deleteUser(id)
+    await setUserRole(email, role)
     revalidatePath("/admin")
-    return { success: true, message: "User deleted successfully" }
+    return { success: true, message: "User role updated successfully" }
   } catch (error) {
-    console.error("Error deleting user:", error)
-    return { success: false, message: "Failed to delete user" }
+    console.error("Error updating user role:", error)
+    return { success: false, message: "Failed to update user role" }
+  }
+}
+
+export async function getUserRoleData(email: string) {
+  try {
+    return await getUserRole(email)
+  } catch (error) {
+    console.error("Error fetching user role:", error)
+    return { exists: false }
   }
 }
 

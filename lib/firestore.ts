@@ -678,14 +678,25 @@ export async function getAllUsers(): Promise<User[]> {
 
 export async function updateUser(userId: string, updateData: Partial<User>): Promise<void> {
   try {
-    const docRef = doc(db, USERS_COLLECTION, userId)
-    await updateDoc(docRef, {
+    await updateDoc(doc(db, USERS_COLLECTION, userId), {
       ...updateData,
       updatedAt: new Date()
     })
   } catch (error) {
     console.error("Error updating user:", error)
-    throw new Error("Failed to update user")
+    throw error
+  }
+}
+
+export async function updateUserRole(userId: string, role: "admin" | "user"): Promise<void> {
+  try {
+    await updateDoc(doc(db, USERS_COLLECTION, userId), {
+      role,
+      updatedAt: new Date()
+    })
+  } catch (error) {
+    console.error("Error updating user role:", error)
+    throw error
   }
 }
 
