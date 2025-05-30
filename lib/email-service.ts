@@ -83,10 +83,86 @@ class EmailService {
       throw new Error(`Failed to send email: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
-
-  async sendBulkEmails(emails: EmailOptions[]): Promise<void> {
-    const promises = emails.map(email => this.sendEmail(email))
-    await Promise.all(promises)
+  /**
+   * Enhanced bulk email sending with better error handling and concurrency control
+   */
+  async sendBulkEmails(emails: EmailOptions[], options: { 
+    maxConcurrency?: number
+    retryAttempts?: number 
+  } = {}): Promise<{
+    successful: number
+    failed: number
+    errors: Array<{ email: string; error: string }>
+  }> {
+    const { maxConcurrency = 5, retryAttempts = 2 } = options
+    let successful = 0
+    let failed = 0
+    const errors: Array<{ email: string; error: string }> = []
+    
+    // Process emails in batches to control concurrency
+    const batches = []
+    for (let i = 0; i < emails.length; i += maxConcurrency) {
+      batches.push(emails.slice(i, i + maxConcurrency))
+    }
+    
+    for (const batch of batches) {
+      const batchPromises = batch.map(async (emailData) => {
+        let attempts = 0
+        const recipientEmail = Array.isArray(emailData.to) ? emailData.to[0] : emailData.to
+        
+        while (attempts <= retryAttempts) {
+          try {
+            await this.sendEmail(emailData)
+            return { success: true, email: recipientEmail }
+          } catch (error) {
+            attempts++
+            
+            if (attempts > retryAttempts) {
+              const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+              return { 
+                success: false, 
+                email: recipientEmail, 
+                error: errorMessage 
+              }
+            }
+            
+            // Wait before retry (exponential backoff)
+            await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempts) * 1000))
+          }
+        }
+        
+        return { success: false, email: recipientEmail, error: 'Max retries exceeded' }
+      })
+      
+      const results = await Promise.allSettled(batchPromises)
+      
+      results.forEach((result) => {
+        if (result.status === 'fulfilled') {
+          if (result.value.success) {
+            successful++
+          } else {
+            failed++
+            errors.push({ 
+              email: result.value.email, 
+              error: result.value.error || 'Unknown error' 
+            })
+          }
+        } else {
+          failed++
+          errors.push({ 
+            email: 'unknown', 
+            error: result.reason?.message || 'Promise rejected' 
+          })
+        }
+      })
+    }
+    
+    console.log(`Bulk email results: ${successful} successful, ${failed} failed`)
+    if (errors.length > 0) {
+      console.error('Email errors:', errors)
+    }
+    
+    return { successful, failed, errors }
   }
 }
 

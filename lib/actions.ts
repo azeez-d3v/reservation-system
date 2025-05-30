@@ -41,7 +41,7 @@ import {
 } from "./email"
 
 // Helper function to get email and system settings consistently
-async function getNotificationSettings() {
+export async function getNotificationSettings() {
   try {
     const [emailSettings, systemSettings] = await Promise.all([
       getEmailConfiguration(),
@@ -199,21 +199,29 @@ export async function submitReservation(request: ReservationRequest) {
         hasContactEmail: !!systemSettings.contactEmail,
         canSendAdminEmail: emailSettings.sendAdminEmails && !!systemSettings.contactEmail
       })
-      
-      if (reservationDetails) {
-        // Send confirmation email to user (if enabled)
+        if (reservationDetails) {
+        // Prepare email tasks for parallel processing
+        const emailTasks: Promise<void>[] = []
+        
+        // Add user confirmation email task (if enabled)
         if (emailSettings.sendUserEmails) {
-          await sendReservationSubmissionEmail(reservationDetails, emailSettings)
-          console.log("User confirmation email sent successfully")
+          emailTasks.push(
+            sendReservationSubmissionEmail(reservationDetails, emailSettings)
+              .then(() => console.log("User confirmation email sent successfully"))
+              .catch(error => console.error("Failed to send user confirmation email:", error))
+          )
         } else {
           console.log("User emails are disabled, skipping confirmation email")
         }
         
-        // Send notification to admins (if enabled)
+        // Add admin notification email task (if enabled)
         if (emailSettings.sendAdminEmails && systemSettings.contactEmail) {
           console.log("Attempting to send admin notification email...")
-          await sendAdminNotification(reservationDetails, emailSettings, systemSettings, 'created')
-          console.log("Admin notification email sent successfully")
+          emailTasks.push(
+            sendAdminNotification(reservationDetails, emailSettings, systemSettings, 'created')
+              .then(() => console.log("Admin notification email sent successfully"))
+              .catch(error => console.error("Failed to send admin notification email:", error))
+          )
         } else {
           console.log("Admin emails are disabled or no contact email configured, skipping admin notification")
           console.log("Debug info:", {
@@ -221,6 +229,13 @@ export async function submitReservation(request: ReservationRequest) {
             contactEmail: `"${systemSettings.contactEmail}"`,
             contactEmailExists: !!systemSettings.contactEmail
           })
+        }
+        
+        // Send all emails in parallel (non-blocking)
+        if (emailTasks.length > 0) {
+          Promise.all(emailTasks)
+            .then(() => console.log("All reservation emails processed successfully"))
+            .catch(error => console.error("Some reservation emails failed:", error))
         }
       } else {
         console.warn("Reservation details not found after creation, skipping email notifications")
@@ -316,25 +331,40 @@ export async function approveReservation(id: string) {
       return { success: false, message: "Reservation not found" }
     }    // Update reservation status
     await updateReservationStatus(id, "approved")
-    
-    // Send email notifications
+      // Send email notifications in parallel
     try {
       const { emailSettings, systemSettings } = await getNotificationSettings()
       
-      // Send approval email to user (if enabled)
+      // Prepare email tasks for parallel processing
+      const emailTasks: Promise<void>[] = []
+      
+      // Add user approval email task (if enabled)
       if (emailSettings.sendUserEmails) {
-        await sendApprovalEmail(reservationDetails, emailSettings)
-        console.log("User approval email sent successfully")
+        emailTasks.push(
+          sendApprovalEmail(reservationDetails, emailSettings)
+            .then(() => console.log("User approval email sent successfully"))
+            .catch(error => console.error("Failed to send user approval email:", error))
+        )
       } else {
         console.log("User emails are disabled, skipping approval email")
       }
       
-      // Send notification to admins (if enabled)
+      // Add admin notification email task (if enabled)
       if (emailSettings.sendAdminEmails && systemSettings.contactEmail) {
-        await sendAdminNotification(reservationDetails, emailSettings, systemSettings, 'updated')
-        console.log("Admin notification email sent successfully")
+        emailTasks.push(
+          sendAdminNotification(reservationDetails, emailSettings, systemSettings, 'updated')
+            .then(() => console.log("Admin notification email sent successfully"))
+            .catch(error => console.error("Failed to send admin notification email:", error))
+        )
       } else {
         console.log("Admin emails are disabled or no contact email configured, skipping admin notification")
+      }
+      
+      // Send all emails in parallel (non-blocking)
+      if (emailTasks.length > 0) {
+        Promise.all(emailTasks)
+          .then(() => console.log("All approval emails processed successfully"))
+          .catch(error => console.error("Some approval emails failed:", error))
       }
     } catch (emailError) {
       console.error("Failed to send approval email notifications:", emailError)
@@ -357,25 +387,40 @@ export async function rejectReservation(id: string, reason?: string) {
       return { success: false, message: "Reservation not found" }
     }    // Update reservation status
     await updateReservationStatus(id, "rejected")
-    
-    // Send email notifications
+      // Send email notifications in parallel
     try {
       const { emailSettings, systemSettings } = await getNotificationSettings()
       
-      // Send rejection email to user (if enabled)
+      // Prepare email tasks for parallel processing
+      const emailTasks: Promise<void>[] = []
+      
+      // Add user rejection email task (if enabled)
       if (emailSettings.sendUserEmails) {
-        await sendRejectionEmail(reservationDetails, emailSettings, reason)
-        console.log("User rejection email sent successfully")
+        emailTasks.push(
+          sendRejectionEmail(reservationDetails, emailSettings, reason)
+            .then(() => console.log("User rejection email sent successfully"))
+            .catch(error => console.error("Failed to send user rejection email:", error))
+        )
       } else {
         console.log("User emails are disabled, skipping rejection email")
       }
       
-      // Send notification to admins (if enabled)
+      // Add admin notification email task (if enabled)
       if (emailSettings.sendAdminEmails && systemSettings.contactEmail) {
-        await sendAdminNotification(reservationDetails, emailSettings, systemSettings, 'updated')
-        console.log("Admin notification email sent successfully")
+        emailTasks.push(
+          sendAdminNotification(reservationDetails, emailSettings, systemSettings, 'updated')
+            .then(() => console.log("Admin notification email sent successfully"))
+            .catch(error => console.error("Failed to send admin notification email:", error))
+        )
       } else {
         console.log("Admin emails are disabled or no contact email configured, skipping admin notification")
+      }
+      
+      // Send all emails in parallel (non-blocking)
+      if (emailTasks.length > 0) {
+        Promise.all(emailTasks)
+          .then(() => console.log("All rejection emails processed successfully"))
+          .catch(error => console.error("Some rejection emails failed:", error))
       }
     } catch (emailError) {
       console.error("Failed to send rejection email notifications:", emailError)
@@ -398,25 +443,40 @@ export async function cancelReservation(id: string) {
       return { success: false, message: "Reservation not found" }
     }    // Update reservation status
     await updateReservationStatus(id, "cancelled")
-    
-    // Send email notifications
+      // Send email notifications in parallel
     try {
       const { emailSettings, systemSettings } = await getNotificationSettings()
       
-      // Send cancellation email to user (if enabled)
+      // Prepare email tasks for parallel processing
+      const emailTasks: Promise<void>[] = []
+      
+      // Add user cancellation email task (if enabled)
       if (emailSettings.sendUserEmails) {
-        await sendCancellationEmail(reservationDetails, emailSettings)
-        console.log("User cancellation email sent successfully")
+        emailTasks.push(
+          sendCancellationEmail(reservationDetails, emailSettings)
+            .then(() => console.log("User cancellation email sent successfully"))
+            .catch(error => console.error("Failed to send user cancellation email:", error))
+        )
       } else {
         console.log("User emails are disabled, skipping cancellation email")
       }
       
-      // Send notification to admins (if enabled)
+      // Add admin notification email task (if enabled)
       if (emailSettings.sendAdminEmails && systemSettings.contactEmail) {
-        await sendAdminNotification(reservationDetails, emailSettings, systemSettings, 'cancelled')
-        console.log("Admin notification email sent successfully")
+        emailTasks.push(
+          sendAdminNotification(reservationDetails, emailSettings, systemSettings, 'cancelled')
+            .then(() => console.log("Admin notification email sent successfully"))
+            .catch(error => console.error("Failed to send admin notification email:", error))
+        )
       } else {
         console.log("Admin emails are disabled or no contact email configured, skipping admin notification")
+      }
+      
+      // Send all emails in parallel (non-blocking)
+      if (emailTasks.length > 0) {
+        Promise.all(emailTasks)
+          .then(() => console.log("All cancellation emails processed successfully"))
+          .catch(error => console.error("Some cancellation emails failed:", error))
       }
     } catch (emailError) {
       console.error("Failed to send cancellation email notifications:", emailError)
