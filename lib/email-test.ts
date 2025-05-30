@@ -2,6 +2,15 @@ import { emailService } from './email-service'
 
 export async function testEmailConnection(): Promise<boolean> {
   try {
+    // Get email settings to check if emails are enabled
+    const { getEmailConfiguration } = await import('./actions')
+    const emailSettings = await getEmailConfiguration()
+    
+    if (!emailSettings.sendUserEmails && !emailSettings.sendAdminEmails) {
+      console.log('Email notifications are disabled in admin settings, skipping connection test')
+      return false
+    }
+    
     // Test email configuration by sending a test email
     await emailService.sendEmail({
       to: process.env.EMAIL_FROM || 'test@example.com',
@@ -19,6 +28,15 @@ export async function testEmailConnection(): Promise<boolean> {
 
 export async function sendTestEmail(to: string): Promise<void> {
   try {
+    // Get email settings to check if emails are enabled
+    const { getEmailConfiguration } = await import('./actions')
+    const emailSettings = await getEmailConfiguration()
+    
+    if (!emailSettings.sendUserEmails && !emailSettings.sendAdminEmails) {
+      console.log('Email notifications are disabled in admin settings, skipping test email')
+      throw new Error('Email notifications are disabled in admin settings')
+    }
+    
     await emailService.sendEmail({
       to,
       subject: 'Test Email from Reservation System',

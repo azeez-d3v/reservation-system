@@ -1122,8 +1122,8 @@ function getDefaultTimeSlotSettings(): TimeSlotSettings {
 
 function getDefaultEmailSettings(): EmailSettings {
   return {
-    sendUserEmails: true,
-    sendAdminEmails: true,
+    sendUserEmails: false,
+    sendAdminEmails: false,
     templates: {
       approval: "Dear {name},\n\nYour reservation request for {date} from {startTime} to {endTime} has been approved.\n\nPurpose: {purpose}\n\nThank you!",
       rejection: "Dear {name},\n\nWe regret to inform you that your reservation request for {date} from {startTime} to {endTime} has been rejected.\n\nPurpose: {purpose}\n\nPlease contact us if you have any questions.",

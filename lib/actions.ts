@@ -40,6 +40,58 @@ import {
   sendAdminNotification
 } from "./email"
 
+// Helper function to get email and system settings consistently
+async function getNotificationSettings() {
+  try {
+    const [emailSettings, systemSettings] = await Promise.all([
+      getEmailConfiguration(),
+      getSettings()
+    ])
+    return { emailSettings, systemSettings }  } catch (error) {
+    console.error("Error fetching notification settings:", error)
+    // Return safe defaults if settings can't be fetched
+    // IMPORTANT: Try to get individual settings instead of failing completely
+    
+    let emailSettings: EmailSettings
+    let systemSettings: SystemSettings
+    
+    try {
+      emailSettings = await getEmailConfiguration()
+    } catch (emailError) {
+      console.error("Failed to get email settings, using defaults:", emailError)
+      emailSettings = {
+        sendUserEmails: false,
+        sendAdminEmails: false,
+        templates: {
+          approval: "Dear {name},\n\nYour reservation request for {date} from {startTime} to {endTime} has been approved.\n\nPurpose: {purpose}\n\nThank you!",
+          rejection: "Dear {name},\n\nWe regret to inform you that your reservation request for {date} from {startTime} to {endTime} has been rejected.\n\nPurpose: {purpose}\n\nPlease contact us if you have any questions.",
+          notification: "New reservation request:\n\nName: {name}\nEmail: {email}\nDate: {date}\nTime: {startTime} - {endTime}\nPurpose: {purpose}\nAttendees: {attendees}"
+        }
+      }
+    }
+    
+    try {
+      systemSettings = await getSettings()
+    } catch (systemError) {
+      console.error("Failed to get system settings, using defaults:", systemError)
+      systemSettings = {
+        systemName: "Reservation System",
+        organizationName: "Your Organization",
+        contactEmail: "admin@example.com", // Use consistent fallback value
+        requireApproval: true,
+        allowOverlapping: true,
+        maxOverlappingReservations: 2,
+        publicCalendar: true,
+        reservationTypes: ["event", "training", "gym", "other"],
+        use12HourFormat: true,
+        maxAdvanceBookingDays: 30
+      }
+    }
+    
+    return { emailSettings, systemSettings }
+  }
+}
+
 // Enhanced validation exports for UI components
 export { type ValidationResult, type TimeSlotValidation }
 
@@ -133,25 +185,45 @@ export async function submitReservation(request: ReservationRequest) {
     if (validationResult.warnings && validationResult.warnings.length > 0) {
       console.log("Reservation warnings:", validationResult.warnings)
     }
-    
-    const reservationId = await createReservation(request)
+      const reservationId = await createReservation(request)
     console.log("Reservation created with ID:", reservationId)
       // Send email notifications
     try {
-      const [emailSettings, systemSettings, reservationDetails] = await Promise.all([
-        getEmailConfiguration(),
-        getSettings(),
-        getReservationById(reservationId)
-      ])
+      const { emailSettings, systemSettings } = await getNotificationSettings()
+      const reservationDetails = await getReservationById(reservationId)
+      
+      console.log("Email notification settings check:", {
+        userEmailsEnabled: emailSettings.sendUserEmails,
+        adminEmailsEnabled: emailSettings.sendAdminEmails,
+        contactEmail: systemSettings.contactEmail,
+        hasContactEmail: !!systemSettings.contactEmail,
+        canSendAdminEmail: emailSettings.sendAdminEmails && !!systemSettings.contactEmail
+      })
       
       if (reservationDetails) {
-        // Send confirmation email to user
-        await sendReservationSubmissionEmail(reservationDetails, emailSettings)
+        // Send confirmation email to user (if enabled)
+        if (emailSettings.sendUserEmails) {
+          await sendReservationSubmissionEmail(reservationDetails, emailSettings)
+          console.log("User confirmation email sent successfully")
+        } else {
+          console.log("User emails are disabled, skipping confirmation email")
+        }
         
-        // Send notification to admins
-        await sendAdminNotification(reservationDetails, emailSettings, systemSettings, 'created')
-        
-        console.log("Email notifications sent successfully")
+        // Send notification to admins (if enabled)
+        if (emailSettings.sendAdminEmails && systemSettings.contactEmail) {
+          console.log("Attempting to send admin notification email...")
+          await sendAdminNotification(reservationDetails, emailSettings, systemSettings, 'created')
+          console.log("Admin notification email sent successfully")
+        } else {
+          console.log("Admin emails are disabled or no contact email configured, skipping admin notification")
+          console.log("Debug info:", {
+            sendAdminEmails: emailSettings.sendAdminEmails,
+            contactEmail: `"${systemSettings.contactEmail}"`,
+            contactEmailExists: !!systemSettings.contactEmail
+          })
+        }
+      } else {
+        console.warn("Reservation details not found after creation, skipping email notifications")
       }
     } catch (emailError) {
       console.error("Failed to send email notifications:", emailError)
@@ -242,24 +314,28 @@ export async function approveReservation(id: string) {
     const reservationDetails = await getReservationById(id)
     if (!reservationDetails) {
       return { success: false, message: "Reservation not found" }
-    }
-
-    // Update reservation status
+    }    // Update reservation status
     await updateReservationStatus(id, "approved")
-      // Send email notifications
+    
+    // Send email notifications
     try {
-      const [emailSettings, systemSettings] = await Promise.all([
-        getEmailConfiguration(),
-        getSettings()
-      ])
+      const { emailSettings, systemSettings } = await getNotificationSettings()
       
-      // Send approval email to user
-      await sendApprovalEmail(reservationDetails, emailSettings)
+      // Send approval email to user (if enabled)
+      if (emailSettings.sendUserEmails) {
+        await sendApprovalEmail(reservationDetails, emailSettings)
+        console.log("User approval email sent successfully")
+      } else {
+        console.log("User emails are disabled, skipping approval email")
+      }
       
-      // Send notification to admins
-      await sendAdminNotification(reservationDetails, emailSettings, systemSettings, 'updated')
-      
-      console.log("Approval email notifications sent successfully")
+      // Send notification to admins (if enabled)
+      if (emailSettings.sendAdminEmails && systemSettings.contactEmail) {
+        await sendAdminNotification(reservationDetails, emailSettings, systemSettings, 'updated')
+        console.log("Admin notification email sent successfully")
+      } else {
+        console.log("Admin emails are disabled or no contact email configured, skipping admin notification")
+      }
     } catch (emailError) {
       console.error("Failed to send approval email notifications:", emailError)
       // Don't fail the approval if email fails
@@ -279,24 +355,28 @@ export async function rejectReservation(id: string, reason?: string) {
     const reservationDetails = await getReservationById(id)
     if (!reservationDetails) {
       return { success: false, message: "Reservation not found" }
-    }
-
-    // Update reservation status
+    }    // Update reservation status
     await updateReservationStatus(id, "rejected")
-      // Send email notifications
+    
+    // Send email notifications
     try {
-      const [emailSettings, systemSettings] = await Promise.all([
-        getEmailConfiguration(),
-        getSettings()
-      ])
+      const { emailSettings, systemSettings } = await getNotificationSettings()
       
-      // Send rejection email to user
-      await sendRejectionEmail(reservationDetails, emailSettings, reason)
+      // Send rejection email to user (if enabled)
+      if (emailSettings.sendUserEmails) {
+        await sendRejectionEmail(reservationDetails, emailSettings, reason)
+        console.log("User rejection email sent successfully")
+      } else {
+        console.log("User emails are disabled, skipping rejection email")
+      }
       
-      // Send notification to admins
-      await sendAdminNotification(reservationDetails, emailSettings, systemSettings, 'updated')
-      
-      console.log("Rejection email notifications sent successfully")
+      // Send notification to admins (if enabled)
+      if (emailSettings.sendAdminEmails && systemSettings.contactEmail) {
+        await sendAdminNotification(reservationDetails, emailSettings, systemSettings, 'updated')
+        console.log("Admin notification email sent successfully")
+      } else {
+        console.log("Admin emails are disabled or no contact email configured, skipping admin notification")
+      }
     } catch (emailError) {
       console.error("Failed to send rejection email notifications:", emailError)
       // Don't fail the rejection if email fails
@@ -316,24 +396,28 @@ export async function cancelReservation(id: string) {
     const reservationDetails = await getReservationById(id)
     if (!reservationDetails) {
       return { success: false, message: "Reservation not found" }
-    }
-
-    // Update reservation status
+    }    // Update reservation status
     await updateReservationStatus(id, "cancelled")
-      // Send email notifications
+    
+    // Send email notifications
     try {
-      const [emailSettings, systemSettings] = await Promise.all([
-        getEmailConfiguration(),
-        getSettings()
-      ])
+      const { emailSettings, systemSettings } = await getNotificationSettings()
       
-      // Send cancellation email to user
-      await sendCancellationEmail(reservationDetails, emailSettings)
+      // Send cancellation email to user (if enabled)
+      if (emailSettings.sendUserEmails) {
+        await sendCancellationEmail(reservationDetails, emailSettings)
+        console.log("User cancellation email sent successfully")
+      } else {
+        console.log("User emails are disabled, skipping cancellation email")
+      }
       
-      // Send notification to admins
-      await sendAdminNotification(reservationDetails, emailSettings, systemSettings, 'cancelled')
-      
-      console.log("Cancellation email notifications sent successfully")
+      // Send notification to admins (if enabled)
+      if (emailSettings.sendAdminEmails && systemSettings.contactEmail) {
+        await sendAdminNotification(reservationDetails, emailSettings, systemSettings, 'cancelled')
+        console.log("Admin notification email sent successfully")
+      } else {
+        console.log("Admin emails are disabled or no contact email configured, skipping admin notification")
+      }
     } catch (emailError) {
       console.error("Failed to send cancellation email notifications:", emailError)
       // Don't fail the cancellation if email fails
@@ -354,16 +438,18 @@ export async function removeReservation(id: string) {
     const reservationDetails = await getReservationById(id)
     
     // Delete the reservation
-    await deleteReservation(id)
-      // Send admin notification if reservation details were found
+    await deleteReservation(id)    // Send admin notification if reservation details were found
     if (reservationDetails) {
       try {
-        const [emailSettings, systemSettings] = await Promise.all([
-          getEmailConfiguration(),
-          getSettings()
-        ])
-        await sendAdminNotification(reservationDetails, emailSettings, systemSettings, 'cancelled')
-        console.log("Deletion notification sent to admins")
+        const { emailSettings, systemSettings } = await getNotificationSettings()
+        
+        // Only send admin notification if enabled
+        if (emailSettings.sendAdminEmails && systemSettings.contactEmail) {
+          await sendAdminNotification(reservationDetails, emailSettings, systemSettings, 'cancelled')
+          console.log("Admin deletion notification sent successfully")
+        } else {
+          console.log("Admin emails are disabled or no contact email configured, skipping deletion notification")
+        }
       } catch (emailError) {
         console.error("Failed to send deletion notification:", emailError)
         // Don't fail the deletion if email fails
@@ -618,23 +704,38 @@ export async function getEmailConfiguration(): Promise<EmailSettings> {
         // Convert updatedAt timestamp to ISO string if it exists
         ...(data?.updatedAt && { updatedAt: data.updatedAt.toDate().toISOString() })
       }
-      return serializedData as EmailSettings
-    } else {      // Return default settings if document doesn't exist
-      return {
-        sendUserEmails: true,
-        sendAdminEmails: true,
+      return serializedData as EmailSettings    
+    } else {
+      // Create default settings document if it doesn't exist
+      const defaultSettings = {
+        sendUserEmails: false,
+        sendAdminEmails: false,
         templates: {
           approval: "Dear {name},\n\nYour reservation request for {date} from {startTime} to {endTime} has been approved.\n\nPurpose: {purpose}\n\nThank you!",
           rejection: "Dear {name},\n\nWe regret to inform you that your reservation request for {date} from {startTime} to {endTime} has been rejected.\n\nPurpose: {purpose}\n\nPlease contact us if you have any questions.",
           notification: "New reservation request:\n\nName: {name}\nEmail: {email}\nDate: {date}\nTime: {startTime} - {endTime}\nPurpose: {purpose}\nAttendees: {attendees}",
-        }
+        },
+        createdAt: new Date(),
+        updatedAt: new Date()
       }
+      
+      // Save default settings to database
+      await docRef.set(defaultSettings)
+      console.log("Created default email settings in database")
+      
+      return {
+        ...defaultSettings,
+        createdAt: defaultSettings.createdAt.toISOString(),
+        updatedAt: defaultSettings.updatedAt.toISOString()
+      } as EmailSettings
     }
   } catch (error) {
-    console.error("Error fetching email settings:", error)    // Return default settings if fetch fails
+    console.error("Error fetching email settings:", error)
+    // Return SAFER defaults that disable emails if there's an error
+    // This ensures emails are not sent if we can't verify the admin's preferences
     return {
-      sendUserEmails: true,
-      sendAdminEmails: true,
+      sendUserEmails: false,
+      sendAdminEmails: false,
       templates: {
         approval: "Dear {name},\n\nYour reservation request for {date} from {startTime} to {endTime} has been approved.\n\nPurpose: {purpose}\n\nThank you!",
         rejection: "Dear {name},\n\nWe regret to inform you that your reservation request for {date} from {startTime} to {endTime} has been rejected.\n\nPurpose: {purpose}\n\nPlease contact us if you have any questions.",
@@ -1025,5 +1126,55 @@ export async function fetchAlternativeDates(
     })
     
     return errorResult
+  }
+}
+
+// Debug function to help diagnose the admin email issue
+export async function debugReservationEmailFlow(reservationId: string) {
+  try {
+    console.log("=== RESERVATION EMAIL FLOW DEBUG ===")
+    console.log("Reservation ID:", reservationId)
+    
+    const { emailSettings, systemSettings } = await getNotificationSettings()
+    const reservationDetails = await getReservationById(reservationId)
+    
+    console.log("Reservation found:", !!reservationDetails)
+    if (reservationDetails) {
+      console.log("Reservation details:", {
+        id: reservationDetails.id,
+        name: reservationDetails.name,
+        email: reservationDetails.email,
+        status: reservationDetails.status
+      })
+    }
+    
+    console.log("Email Settings Check:")
+    console.log("- sendUserEmails:", emailSettings.sendUserEmails)
+    console.log("- sendAdminEmails:", emailSettings.sendAdminEmails)
+    
+    console.log("System Settings Check:")
+    console.log("- contactEmail:", `"${systemSettings.contactEmail}"`)
+    console.log("- contactEmail length:", systemSettings.contactEmail?.length || 0)
+    console.log("- contactEmail is truthy:", !!systemSettings.contactEmail)
+    
+    const canSendAdminEmail = emailSettings.sendAdminEmails && !!systemSettings.contactEmail
+    console.log("Final admin email decision:", canSendAdminEmail)
+    console.log("Condition breakdown:", {
+      sendAdminEmailsEnabled: emailSettings.sendAdminEmails,
+      hasContactEmail: !!systemSettings.contactEmail,
+      finalResult: canSendAdminEmail
+    })
+    
+    console.log("=== END RESERVATION EMAIL FLOW DEBUG ===")
+    
+    return {
+      emailSettings,
+      systemSettings,
+      reservationDetails,
+      canSendAdminEmail
+    }
+  } catch (error) {
+    console.error("Error in debugReservationEmailFlow:", error)
+    return null
   }
 }

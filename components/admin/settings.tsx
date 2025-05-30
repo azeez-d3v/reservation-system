@@ -832,41 +832,74 @@ export function AdminSettings() {
               </Button>
             </CardFooter>
           </Card>
-        </TabsContent>
-
-        <TabsContent value="email" className="space-y-6">
+        </TabsContent>        <TabsContent value="email" className="space-y-6">
           <Card>
             <CardHeader>
               <CardTitle>Email Notifications</CardTitle>
-              <CardDescription>Configure email notifications for the reservation system.</CardDescription>
+              <CardDescription>
+                Configure email notifications for the reservation system. These settings control all email notifications throughout the system.
+              </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
+            <CardContent className="space-y-6">
+              <div className="p-4 border rounded-lg bg-blue-50 dark:bg-blue-950/20">
+                <h4 className="font-medium text-blue-900 dark:text-blue-100 mb-2">
+                  🔧 Email Notification Controls
+                </h4>
+                <p className="text-sm text-blue-800 dark:text-blue-200">
+                  These toggles control all email notifications sent by the system. When disabled, no emails of that type will be sent regardless of other settings.
+                </p>
+              </div>
+              
+              <div className="flex items-center justify-between p-4 border rounded-lg">
                 <div className="space-y-0.5">
-                  <Label htmlFor="sendUserEmails">User Notifications</Label>
+                  <Label htmlFor="sendUserEmails" className="text-base font-medium">User Notifications</Label>
                   <p className="text-sm text-muted-foreground">
-                    Send email notifications to users when their reservation status changes
+                    Send email notifications to users for confirmation, approval, rejection, and cancellation of their reservations
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Affects: Submission confirmations, approval notifications, rejection notifications, cancellation notifications
                   </p>
                 </div>
                 <Switch
                   id="sendUserEmails"
                   checked={emailSettings.sendUserEmails}
-                  onCheckedChange={(checked) => setEmailSettings({ ...emailSettings, sendUserEmails: checked })}
+                  onCheckedChange={(checked) => {
+                    setEmailSettings({ ...emailSettings, sendUserEmails: checked })
+                    showChangeNotification('User email')
+                  }}
                 />
               </div>
 
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between p-4 border rounded-lg">
                 <div className="space-y-0.5">
-                  <Label htmlFor="sendAdminEmails">Admin Notifications</Label>
+                  <Label htmlFor="sendAdminEmails" className="text-base font-medium">Admin Notifications</Label>
                   <p className="text-sm text-muted-foreground">
-                    Send email notifications to administrators for new reservation requests
+                    Send email notifications to administrators for new reservation requests and status changes
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Affects: New reservation alerts, status change notifications, deletion notifications
                   </p>
                 </div>
                 <Switch
                   id="sendAdminEmails"
                   checked={emailSettings.sendAdminEmails}
-                  onCheckedChange={(checked) => setEmailSettings({ ...emailSettings, sendAdminEmails: checked })}
-                />              </div>
+                  onCheckedChange={(checked) => {
+                    setEmailSettings({ ...emailSettings, sendAdminEmails: checked })
+                    showChangeNotification('Admin email')
+                  }}
+                />
+              </div>
+              
+              {(!emailSettings.sendUserEmails && !emailSettings.sendAdminEmails) && (
+                <div className="p-4 border border-orange-200 rounded-lg bg-orange-50 dark:bg-orange-950/20">
+                  <h4 className="font-medium text-orange-900 dark:text-orange-100 mb-1">
+                    ⚠️ All Email Notifications Disabled
+                  </h4>
+                  <p className="text-sm text-orange-800 dark:text-orange-200">
+                    Both user and admin email notifications are currently disabled. No emails will be sent by the system.
+                  </p>
+                </div>
+              )}
             </CardContent>
             <CardFooter>
               <Button 
