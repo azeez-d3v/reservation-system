@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { useAuth } from "@/hooks/use-auth"
 import { redirect } from "next/navigation"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -20,20 +20,83 @@ export default function DashboardPage() {
   })
   const [stats, setStats] = useState<any>(null)
   const [isLoadingData, setIsLoadingData] = useState(true)
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false)
+
+  // Cache key for localStorage
+  const getCacheKey = (userId: string) => `dashboard_data_${userId}`
+
+  // Load cached data from localStorage
+  const loadCachedData = useCallback((userId: string) => {
+    try {
+      const cached = localStorage.getItem(getCacheKey(userId))
+      if (cached) {
+        const data = JSON.parse(cached)
+        // Check if cache is less than 5 minutes old
+        const cacheAge = Date.now() - data.timestamp
+        if (cacheAge < 5 * 60 * 1000) { // 5 minutes
+          setReservations(data.reservations)
+          setStats(data.stats)
+          setIsLoadingData(false)
+          setHasLoadedOnce(true)
+          return true
+        }
+      }
+    } catch (error) {
+      console.error("Error loading cached data:", error)
+    }
+    return false
+  }, [])
+
+  // Save data to localStorage
+  const saveCachedData = useCallback((userId: string, reservations: any, stats: any) => {
+    try {
+      const data = {
+        reservations,
+        stats,
+        timestamp: Date.now()
+      }
+      localStorage.setItem(getCacheKey(userId), JSON.stringify(data))
+    } catch (error) {
+      console.error("Error saving cached data:", error)
+    }
+  }, [])
+
   useEffect(() => {
     if (!isLoading && !user) {
       redirect("/login")
     }
 
-    if (user) {
-      fetchData()
+    if (user && !hasLoadedOnce) {
+      // Try to load cached data first
+      const hasCache = loadCachedData(user.id)
+      
+      // Always fetch fresh data, but in background if we have cache
+      if (hasCache) {
+        // Fetch in background without showing loading
+        fetchDataSilently()
+      } else {
+        // No cache, show loading and fetch
+        fetchData()
+      }
     }
-  }, [user, isLoading])
+  }, [user, isLoading, hasLoadedOnce, loadCachedData])
 
   const fetchData = async () => {
     if (!user) return
     
     setIsLoadingData(true)
+    await fetchDataInternal()
+  }
+
+  const fetchDataSilently = async () => {
+    if (!user) return
+    
+    await fetchDataInternal()
+  }
+
+  const fetchDataInternal = async () => {
+    if (!user) return
+    
     try {
       console.log("User object:", user)
       console.log("User ID:", user.id)
@@ -56,6 +119,10 @@ export default function DashboardPage() {
       
       setReservations(categorizedReservations)
       setStats(userStats)
+      setHasLoadedOnce(true)
+      
+      // Save to cache
+      saveCachedData(user.id, categorizedReservations, userStats)
     } catch (error) {
       console.error("Failed to fetch user data:", error)
     } finally {

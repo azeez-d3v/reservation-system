@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { AdminRequests } from "@/components/admin/requests"
+import { AdminRequests } from "@/components/admin/requests-new"
 import { AdminReservations } from "@/components/admin/reservations-new"
 import { AdminSettings } from "@/components/admin/settings"
 import { Calendar, Clock, Settings } from "lucide-react"

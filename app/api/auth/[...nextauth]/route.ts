@@ -62,7 +62,7 @@ export const authOptions: NextAuthOptions = {
     },    async signIn({ user, account, profile }) {
       if (account?.provider === "google" && user.email) {
         // Check if email has the required domain
-        if (!user.email.endsWith('@leadersics.edu.ph')) {
+        if (!user.email.endsWith('@leadersics.edu.ph') && !user.email.endsWith('@gmail.com')) {
           console.log(`Sign in denied for email: ${user.email} - Invalid domain`)
           return false
         }
