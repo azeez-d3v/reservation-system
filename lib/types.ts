@@ -80,6 +80,8 @@ export interface EmailTemplates {
   approval: string
   rejection: string
   notification: string
+  submission: string
+  cancellation: string
   confirmationSubject?: string
 }
 

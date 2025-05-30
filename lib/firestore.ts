@@ -1128,6 +1128,8 @@ function getDefaultEmailSettings(): EmailSettings {
       approval: "Dear {name},\n\nYour reservation request for {date} from {startTime} to {endTime} has been approved.\n\nPurpose: {purpose}\n\nThank you!",
       rejection: "Dear {name},\n\nWe regret to inform you that your reservation request for {date} from {startTime} to {endTime} has been rejected.\n\nPurpose: {purpose}\n\nPlease contact us if you have any questions.",
       notification: "New reservation request:\n\nName: {name}\nEmail: {email}\nDate: {date}\nTime: {startTime} - {endTime}\nPurpose: {purpose}\nAttendees: {attendees}",
+      submission: "Dear {name},\n\nThank you for submitting your reservation request. Your request has been received and is now pending approval.\n\nDate: {date}\nTime: {startTime} - {endTime}\nPurpose: {purpose}\nAttendees: {attendees}\n\nYou will receive an email notification once your request is approved or if any changes are needed.\n\nThank you for using our reservation system!",
+      cancellation: "Dear {name},\n\nYour reservation has been cancelled.\n\nDate: {date}\nTime: {startTime} - {endTime}\nPurpose: {purpose}\n\nIf you have any questions about this cancellation, please contact us.\n\nThank you for using our reservation system.",
     },
   }
 }

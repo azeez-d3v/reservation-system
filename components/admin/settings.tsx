@@ -959,9 +959,7 @@ export function AdminSettings() {
                 <p className="text-sm text-muted-foreground">
                   Available variables: {"{name}"}, {"{date}"}, {"{startTime}"}, {"{endTime}"}, {"{purpose}"}
                 </p>
-              </div>
-
-              <div className="space-y-2">
+              </div>              <div className="space-y-2">
                 <Label htmlFor="notificationTemplate">Admin Notification Template</Label>
                 <Textarea
                   id="notificationTemplate"
@@ -980,6 +978,48 @@ export function AdminSettings() {
                 <p className="text-sm text-muted-foreground">
                   Available variables: {"{name}"}, {"{email}"}, {"{date}"}, {"{startTime}"}, {"{endTime}"},{" "}
                   {"{purpose}"}, {"{attendees}"}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="submissionTemplate">Submission Confirmation Template</Label>
+                <Textarea
+                  id="submissionTemplate"
+                  rows={5}
+                  value={emailSettings.templates.submission}
+                  onChange={(e) =>
+                    setEmailSettings({
+                      ...emailSettings,
+                      templates: {
+                        ...emailSettings.templates,
+                        submission: e.target.value,
+                      },
+                    })
+                  }
+                />
+                <p className="text-sm text-muted-foreground">
+                  Available variables: {"{name}"}, {"{date}"}, {"{startTime}"}, {"{endTime}"}, {"{purpose}"}, {"{attendees}"}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="cancellationTemplate">Cancellation Email Template</Label>
+                <Textarea
+                  id="cancellationTemplate"
+                  rows={5}
+                  value={emailSettings.templates.cancellation}
+                  onChange={(e) =>
+                    setEmailSettings({
+                      ...emailSettings,
+                      templates: {
+                        ...emailSettings.templates,
+                        cancellation: e.target.value,
+                      },
+                    })
+                  }
+                />
+                <p className="text-sm text-muted-foreground">
+                  Available variables: {"{name}"}, {"{date}"}, {"{startTime}"}, {"{endTime}"}, {"{purpose}"}
                 </p>
               </div>
             </CardContent>

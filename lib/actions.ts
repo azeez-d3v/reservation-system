@@ -65,7 +65,9 @@ export async function getNotificationSettings() {
         templates: {
           approval: "Dear {name},\n\nYour reservation request for {date} from {startTime} to {endTime} has been approved.\n\nPurpose: {purpose}\n\nThank you!",
           rejection: "Dear {name},\n\nWe regret to inform you that your reservation request for {date} from {startTime} to {endTime} has been rejected.\n\nPurpose: {purpose}\n\nPlease contact us if you have any questions.",
-          notification: "New reservation request:\n\nName: {name}\nEmail: {email}\nDate: {date}\nTime: {startTime} - {endTime}\nPurpose: {purpose}\nAttendees: {attendees}"
+          notification: "New reservation request:\n\nName: {name}\nEmail: {email}\nDate: {date}\nTime: {startTime} - {endTime}\nPurpose: {purpose}\nAttendees: {attendees}",
+          submission: "Dear {name},\n\nThank you for submitting your reservation request. Your request has been received and is now pending approval.\n\nDate: {date}\nTime: {startTime} - {endTime}\nPurpose: {purpose}\nAttendees: {attendees}\n\nYou will receive an email notification once your request is approved or if any changes are needed.\n\nThank you for using our reservation system!",
+          cancellation: "Dear {name},\n\nYour reservation has been cancelled.\n\nDate: {date}\nTime: {startTime} - {endTime}\nPurpose: {purpose}\n\nIf you have any questions about this cancellation, please contact us.\n\nThank you for using our reservation system!"
         }
       }
     }
@@ -337,8 +339,7 @@ export async function approveReservation(id: string) {
       
       // Prepare email tasks for parallel processing
       const emailTasks: Promise<void>[] = []
-      
-      // Add user approval email task (if enabled)
+        // Add user approval email task (if enabled)
       if (emailSettings.sendUserEmails) {
         emailTasks.push(
           sendApprovalEmail(reservationDetails, emailSettings)
@@ -349,16 +350,8 @@ export async function approveReservation(id: string) {
         console.log("User emails are disabled, skipping approval email")
       }
       
-      // Add admin notification email task (if enabled)
-      if (emailSettings.sendAdminEmails && systemSettings.contactEmail) {
-        emailTasks.push(
-          sendAdminNotification(reservationDetails, emailSettings, systemSettings, 'updated')
-            .then(() => console.log("Admin notification email sent successfully"))
-            .catch(error => console.error("Failed to send admin notification email:", error))
-        )
-      } else {
-        console.log("Admin emails are disabled or no contact email configured, skipping admin notification")
-      }
+      // Note: Admin notifications are only sent for new reservations, not approvals
+      console.log("Admin notification skipped for approval - only sent for new reservations")
       
       // Send all emails in parallel (non-blocking)
       if (emailTasks.length > 0) {
@@ -393,8 +386,7 @@ export async function rejectReservation(id: string, reason?: string) {
       
       // Prepare email tasks for parallel processing
       const emailTasks: Promise<void>[] = []
-      
-      // Add user rejection email task (if enabled)
+        // Add user rejection email task (if enabled)
       if (emailSettings.sendUserEmails) {
         emailTasks.push(
           sendRejectionEmail(reservationDetails, emailSettings, reason)
@@ -405,16 +397,8 @@ export async function rejectReservation(id: string, reason?: string) {
         console.log("User emails are disabled, skipping rejection email")
       }
       
-      // Add admin notification email task (if enabled)
-      if (emailSettings.sendAdminEmails && systemSettings.contactEmail) {
-        emailTasks.push(
-          sendAdminNotification(reservationDetails, emailSettings, systemSettings, 'updated')
-            .then(() => console.log("Admin notification email sent successfully"))
-            .catch(error => console.error("Failed to send admin notification email:", error))
-        )
-      } else {
-        console.log("Admin emails are disabled or no contact email configured, skipping admin notification")
-      }
+      // Note: Admin notifications are only sent for new reservations, not rejections
+      console.log("Admin notification skipped for rejection - only sent for new reservations")
       
       // Send all emails in parallel (non-blocking)
       if (emailTasks.length > 0) {
@@ -449,8 +433,7 @@ export async function cancelReservation(id: string) {
       
       // Prepare email tasks for parallel processing
       const emailTasks: Promise<void>[] = []
-      
-      // Add user cancellation email task (if enabled)
+        // Add user cancellation email task (if enabled)
       if (emailSettings.sendUserEmails) {
         emailTasks.push(
           sendCancellationEmail(reservationDetails, emailSettings)
@@ -461,16 +444,8 @@ export async function cancelReservation(id: string) {
         console.log("User emails are disabled, skipping cancellation email")
       }
       
-      // Add admin notification email task (if enabled)
-      if (emailSettings.sendAdminEmails && systemSettings.contactEmail) {
-        emailTasks.push(
-          sendAdminNotification(reservationDetails, emailSettings, systemSettings, 'cancelled')
-            .then(() => console.log("Admin notification email sent successfully"))
-            .catch(error => console.error("Failed to send admin notification email:", error))
-        )
-      } else {
-        console.log("Admin emails are disabled or no contact email configured, skipping admin notification")
-      }
+      // Note: Admin notifications are only sent for new reservations, not cancellations
+      console.log("Admin notification skipped for cancellation - only sent for new reservations")
       
       // Send all emails in parallel (non-blocking)
       if (emailTasks.length > 0) {
@@ -496,25 +471,11 @@ export async function removeReservation(id: string) {
   try {
     // Get reservation details before deletion for email notification
     const reservationDetails = await getReservationById(id)
+      // Delete the reservation
+    await deleteReservation(id)
     
-    // Delete the reservation
-    await deleteReservation(id)    // Send admin notification if reservation details were found
-    if (reservationDetails) {
-      try {
-        const { emailSettings, systemSettings } = await getNotificationSettings()
-        
-        // Only send admin notification if enabled
-        if (emailSettings.sendAdminEmails && systemSettings.contactEmail) {
-          await sendAdminNotification(reservationDetails, emailSettings, systemSettings, 'cancelled')
-          console.log("Admin deletion notification sent successfully")
-        } else {
-          console.log("Admin emails are disabled or no contact email configured, skipping deletion notification")
-        }
-      } catch (emailError) {
-        console.error("Failed to send deletion notification:", emailError)
-        // Don't fail the deletion if email fails
-      }
-    }
+    // Note: Admin notifications are only sent for new reservations, not deletions
+    console.log("Admin notification skipped for deletion - only sent for new reservations")
     
     revalidatePath("/admin")
     return { success: true, message: "Reservation deleted successfully" }
@@ -774,6 +735,8 @@ export async function getEmailConfiguration(): Promise<EmailSettings> {
           approval: "Dear {name},\n\nYour reservation request for {date} from {startTime} to {endTime} has been approved.\n\nPurpose: {purpose}\n\nThank you!",
           rejection: "Dear {name},\n\nWe regret to inform you that your reservation request for {date} from {startTime} to {endTime} has been rejected.\n\nPurpose: {purpose}\n\nPlease contact us if you have any questions.",
           notification: "New reservation request:\n\nName: {name}\nEmail: {email}\nDate: {date}\nTime: {startTime} - {endTime}\nPurpose: {purpose}\nAttendees: {attendees}",
+          submission: "Dear {name},\n\nThank you for submitting your reservation request. Your request has been received and is now pending approval.\n\nDate: {date}\nTime: {startTime} - {endTime}\nPurpose: {purpose}\nAttendees: {attendees}\n\nYou will receive an email notification once your request is approved or if any changes are needed.\n\nThank you for using our reservation system!",
+          cancellation: "Dear {name},\n\nYour reservation has been cancelled.\n\nDate: {date}\nTime: {startTime} - {endTime}\nPurpose: {purpose}\n\nIf you have any questions about this cancellation, please contact us.\n\nThank you for using our reservation system.",
         },
         createdAt: new Date(),
         updatedAt: new Date()
@@ -800,6 +763,8 @@ export async function getEmailConfiguration(): Promise<EmailSettings> {
         approval: "Dear {name},\n\nYour reservation request for {date} from {startTime} to {endTime} has been approved.\n\nPurpose: {purpose}\n\nThank you!",
         rejection: "Dear {name},\n\nWe regret to inform you that your reservation request for {date} from {startTime} to {endTime} has been rejected.\n\nPurpose: {purpose}\n\nPlease contact us if you have any questions.",
         notification: "New reservation request:\n\nName: {name}\nEmail: {email}\nDate: {date}\nTime: {startTime} - {endTime}\nPurpose: {purpose}\nAttendees: {attendees}",
+        submission: "Dear {name},\n\nThank you for submitting your reservation request. Your request has been received and is now pending approval.\n\nDate: {date}\nTime: {startTime} - {endTime}\nPurpose: {purpose}\nAttendees: {attendees}\n\nYou will receive an email notification once your request is approved or if any changes are needed.\n\nThank you for using our reservation system!",
+        cancellation: "Dear {name},\n\nYour reservation has been cancelled.\n\nDate: {date}\nTime: {startTime} - {endTime}\nPurpose: {purpose}\n\nIf you have any questions about this cancellation, please contact us.\n\nThank you for using our reservation system!"
       }
     }
   }

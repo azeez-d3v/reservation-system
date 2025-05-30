@@ -29,6 +29,25 @@ function formatReservationDetails(reservation: Reservation): string {
   `
 }
 
+// Helper function to process email template variables
+function processEmailTemplate(template: string, reservation: Reservation): string {
+  const dateStr = reservation.date instanceof Date 
+    ? format(reservation.date, "EEEE, MMMM d, yyyy")
+    : format(new Date(reservation.date), "EEEE, MMMM d, yyyy")
+
+  return template
+    .replace(/\{name\}/g, reservation.name)
+    .replace(/\{email\}/g, reservation.email)
+    .replace(/\{date\}/g, dateStr)
+    .replace(/\{startTime\}/g, reservation.startTime)
+    .replace(/\{endTime\}/g, reservation.endTime)
+    .replace(/\{purpose\}/g, reservation.purpose)
+    .replace(/\{attendees\}/g, reservation.attendees.toString())
+    .replace(/\{type\}/g, reservation.type)
+    .replace(/\{notes\}/g, reservation.notes || '')
+    .replace(/\{id\}/g, reservation.id || '')
+}
+
 // Send reservation confirmation email to user when they submit a request
 export async function sendReservationSubmissionEmail(reservation: Reservation, emailSettings: EmailSettings): Promise<void> {
   if (!emailSettings.sendUserEmails) {
@@ -37,20 +56,11 @@ export async function sendReservationSubmissionEmail(reservation: Reservation, e
   }
 
   try {
-    const emailContent = `Dear ${reservation.name},
+    // Get the template
+    let emailContent = emailSettings.templates.submission
 
-Thank you for submitting your reservation request. Your request has been received and is now pending approval.
-
-${formatReservationDetails(reservation)}
-
-**What's Next?**
-- Your request will be reviewed by our team
-- You will receive an email notification once your request is approved or if any changes are needed
-- If you need to make changes to your request, please contact us as soon as possible
-
-We will notify you as soon as your reservation status is updated.
-
-Thank you for using our reservation system!`
+    // Replace variables using the helper function
+    emailContent = processEmailTemplate(emailContent, reservation)
 
     await emailService.sendEmail({
       to: reservation.email,
@@ -199,20 +209,22 @@ export async function sendCancellationEmail(reservation: Reservation, emailSetti
   }
 
   try {
-    const actionText = cancelledBy === 'user' ? 'cancelled your' : 'been cancelled'
-    const cancelledByText = cancelledBy === 'user' ? 'You have' : 'Your reservation has'
-    
-    const emailContent = `Dear ${reservation.name},
+    // Get the template
+    let emailContent = emailSettings.templates.cancellation
 
-${cancelledByText} ${actionText} reservation.
+    // Replace variables using the helper function
+    emailContent = processEmailTemplate(emailContent, reservation)
 
-${formatReservationDetails(reservation)}
+    // Add reason if provided
+    if (reason) {
+      emailContent += `\n\n**Cancellation Reason:** ${reason}`
+    }
 
-${reason ? `**Cancellation Reason:** ${reason}\n\n` : ''}${cancelledBy === 'admin' 
-  ? 'If you have any questions about this cancellation, please contact us.' 
-  : 'If you need to make a new reservation, you can submit a new request at any time.'}
-
-Thank you for using our reservation system.`
+    // Add context-specific message based on who cancelled (only for user cancellations)
+    if (cancelledBy === 'user') {
+      emailContent += '\n\nIf you need to make a new reservation, you can submit a new request at any time.'
+    }
+    // Note: Admin cancellations already have appropriate messaging in the template
 
     await emailService.sendEmail({
       to: reservation.email,
