@@ -688,7 +688,7 @@ export async function updateUser(userId: string, updateData: Partial<User>): Pro
   }
 }
 
-export async function updateUserRole(userId: string, role: "admin" | "user"): Promise<void> {
+export async function updateUserRole(userId: string, role: "admin" | "staff" | "user"): Promise<void> {
   try {
     await updateDoc(doc(db, USERS_COLLECTION, userId), {
       role,

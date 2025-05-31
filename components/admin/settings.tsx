@@ -10,6 +10,9 @@ import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
+import { useSession } from "next-auth/react"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Lock } from "lucide-react"
 import {
   getSettings,
   updateSettings,
@@ -26,9 +29,14 @@ import { AdminUsers } from "@/components/admin/users"
 
 export function AdminSettings() {
   const { toast } = useToast()
+  const { data: session } = useSession()
   const [activeTab, setActiveTab] = useState("general")
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
+
+  // Check if user has admin privileges (not staff)
+  const isAdmin = session?.user?.role === "admin"
+  const isStaff = session?.user?.role === "staff"
 
   // Settings states
   const [systemSettings, setSystemSettings] = useState<SystemSettings | null>(null)
@@ -459,13 +467,43 @@ export function AdminSettings() {
       description: `${settingType} settings have been modified. Remember to save your changes.`,
     })
   }
-
   if (isLoading) {
     return <div className="flex justify-center py-12">Loading settings...</div>
   }
 
   if (!systemSettings || !timeSlotSettings || !emailSettings) {
     return <div className="flex justify-center py-12">Failed to load settings</div>
+  }
+
+  // Staff users can only access user management and reservations, not system settings
+  if (isStaff) {
+    return (
+      <div>
+        <Alert className="mb-6">
+          <Lock className="h-4 w-4" />
+          <AlertDescription>
+            As a staff member, you have access to reservation management but cannot modify system settings. Only administrators can change system configuration.
+          </AlertDescription>
+        </Alert>
+        <Tabs defaultValue="users" value={activeTab} onValueChange={setActiveTab}>
+          <TabsList>
+            <TabsTrigger value="users">User Management</TabsTrigger>
+          </TabsList>
+          <TabsContent value="users">
+            <Card>
+              <CardHeader>
+                <CardTitle>User Management</CardTitle>                <CardDescription>
+                  Manage user accounts and access permissions. You can enable/disable user access but cannot change user roles (admin only).
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <AdminUsers />
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
+    )
   }
 
   return (
@@ -1046,7 +1084,7 @@ export function AdminSettings() {
                 Manage user accounts, roles, and access permissions. You can enable/disable user access and change user roles.
               </CardDescription>
             </CardHeader>
-            <CardContent className="p-6">
+            <CardContent>
               <AdminUsers />
             </CardContent>
           </Card>

@@ -58,11 +58,11 @@ export function UserAccountNav() {
               <span>Dashboard</span>
             </Link>
           </DropdownMenuItem>
-          {session.user.role === "admin" && (
+          {(session.user.role === "admin" || session.user.role === "staff") && (
             <DropdownMenuItem asChild>
               <Link href="/admin">
                 <Settings className="mr-2 h-4 w-4" />
-                <span>Admin Panel</span>
+                <span>{session.user.role === "admin" ? "Admin Panel" : "Staff Panel"}</span>
               </Link>
             </DropdownMenuItem>
           )}

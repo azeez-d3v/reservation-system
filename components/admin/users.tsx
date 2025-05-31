@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from "react"
 import { useAuth } from "@/hooks/use-auth"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { useSession } from "next-auth/react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Search, UserX, UserCheck, Settings } from "lucide-react"
 import { format } from "date-fns"
 import {
@@ -18,20 +19,33 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
+import { canChangeUserRoles, getRoleBadgeVariant, getRoleDisplayName, canManageUsers, type UserRole } from "@/lib/permissions"
 import type { User } from "@/lib/types"
 
 export function AdminUsers() {
   const { getAllUsers, updateUserStatus, updateUserRole, user: currentUser } = useAuth()
+  const { data: session } = useSession()
   const { toast } = useToast()
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [showDisableDialog, setShowDisableDialog] = useState(false)
   const [showEnableDialog, setShowEnableDialog] = useState(false)
   const [showRoleDialog, setShowRoleDialog] = useState(false)
-  const [newRole, setNewRole] = useState<"admin" | "user">("user")
+  const [newRole, setNewRole] = useState<UserRole>("user")
   const [users, setUsers] = useState<User[]>([])
   const [isLoading, setIsLoading] = useState(true)
+
+  // Check permissions using utility functions
+  const canChangeRoles = session?.user?.role ? canChangeUserRoles(session.user.role as "admin" | "staff" | "user") : false
+  const canManageUsersPermission = session?.user?.role ? canManageUsers(session.user.role as "admin" | "staff" | "user") : false
 
   const refreshUsers = async () => {
     try {
@@ -85,7 +99,7 @@ export function AdminUsers() {
 
   const handleRoleChange = (user: User) => {
     setSelectedUser(user)
-    setNewRole(user.role === "admin" ? "user" : "admin")
+    setNewRole(user.role as UserRole) // Start with current role
     setShowRoleDialog(true)
   }
 
@@ -130,94 +144,118 @@ export function AdminUsers() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="relative w-full sm:w-auto">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search users..."
-            className="w-full pl-8 sm:w-[300px]"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
+      {/* Search Input */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+        <Input
+          placeholder="Search users by name or email..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="pl-10"
+        />
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>User Management</CardTitle>
-          <CardDescription>Manage user accounts and permissions</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="space-y-4">
-              <div className="h-4 bg-muted animate-pulse rounded" />
-              <div className="h-4 bg-muted animate-pulse rounded" />
-              <div className="h-4 bg-muted animate-pulse rounded" />
-            </div>
-          ) : (
-            <div className="rounded-md border">
-              <div className="grid grid-cols-5 border-b px-4 py-3 font-medium">
-                <div className="col-span-2">User</div>
-                <div>Role</div>
-                <div>Joined</div>
-                <div className="text-right">Actions</div>
+      {/* Users List */}
+      {isLoading ? (
+        <div className="space-y-3">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="flex items-center justify-between p-4 border rounded-lg bg-card">
+              <div className="flex items-center gap-4">
+                <div className="h-10 w-10 rounded-full bg-muted animate-pulse shrink-0" />
+                <div className="space-y-2 flex-1">
+                  <div className="h-4 w-32 bg-muted animate-pulse rounded" />
+                  <div className="h-3 w-48 bg-muted animate-pulse rounded" />
+                </div>
               </div>
-              <div className="divide-y">
-                {filteredUsers.map((user: User) => (
-                  <div key={user.id} className="grid grid-cols-5 items-center px-4 py-3">
-                    <div className="col-span-2">
-                      <div className="font-medium">{user.name}</div>
-                      <div className="text-sm text-muted-foreground">{user.email}</div>
-                    </div>
-                    <div>
-                      <Badge variant={user.role === "admin" ? "default" : "outline"}>
-                        {user.role === "admin" ? "Admin" : "User"}
+              <div className="flex items-center gap-2">
+                <div className="h-6 w-16 bg-muted animate-pulse rounded" />
+                <div className="h-8 w-20 bg-muted animate-pulse rounded" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : filteredUsers.length === 0 ? (
+        <div className="text-center py-12">
+          <Search className="mx-auto h-12 w-12 text-muted-foreground/50" />
+          <h3 className="mt-4 text-lg font-semibold">No users found</h3>
+          <p className="text-muted-foreground">Try adjusting your search terms.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filteredUsers.map((user: User) => (
+            <div
+              key={user.id}
+              className="flex flex-col gap-4 p-4 border rounded-lg bg-card hover:bg-accent/50 transition-colors sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div className="flex items-center gap-4">
+                <Avatar className="h-10 w-10">
+                  <AvatarImage src={user.image} alt={user.name} />
+                  <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                    {user.name.charAt(0).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-medium truncate">{user.name}</h3>
+                    <Badge 
+                      variant={getRoleBadgeVariant(user.role as "admin" | "staff" | "user")} 
+                      className="shrink-0"
+                    >
+                      {getRoleDisplayName(user.role as "admin" | "staff" | "user")}
+                    </Badge>
+                    {user.status === "inactive" && (
+                      <Badge variant="destructive" className="shrink-0">
+                        Disabled
                       </Badge>
-                      {user.status === "inactive" && (
-                        <Badge variant="destructive" className="ml-2">
-                          Disabled
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="text-sm text-muted-foreground">{format(new Date(user.createdAt), "MMM d, yyyy")}</div>
-                    <div className="flex justify-end gap-2">
-                      {user.id !== currentUser?.id && (
-                        <>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleRoleChange(user)}
-                            className="text-blue-600 hover:bg-blue-50"
-                          >
-                            <Settings className="mr-2 h-4 w-4" />
-                            {user.role === "admin" ? "Make User" : "Make Admin"}
-                          </Button>
-                          {user.status === "active" ? (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="text-destructive hover:bg-destructive/10"
-                              onClick={() => handleDisableUser(user)}
-                            >
-                              <UserX className="mr-2 h-4 w-4" />
-                              Disable
-                            </Button>
-                          ) : (
-                            <Button variant="outline" size="sm" onClick={() => handleEnableUser(user)}>
-                              <UserCheck className="mr-2 h-4 w-4" />
-                              Enable
-                            </Button>
-                          )}
-                        </>
-                      )}
-                    </div>
+                    )}
                   </div>
-                ))}
+                  <p className="text-sm text-muted-foreground truncate">{user.email}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Joined {format(new Date(user.createdAt), "MMM d, yyyy")}
+                  </p>
+                </div>
               </div>
+              
+              {user.id !== currentUser?.id && canManageUsersPermission && (
+                <div className="flex gap-2 sm:shrink-0">
+                  {canChangeRoles && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleRoleChange(user)}
+                      className="text-blue-600 hover:bg-blue-50 hover:border-blue-200 dark:hover:bg-blue-950"
+                    >
+                      <Settings className="mr-2 h-4 w-4" />
+                      Change Role
+                    </Button>
+                  )}
+                  {user.status === "active" ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-destructive hover:bg-destructive/10 hover:border-destructive/20"
+                      onClick={() => handleDisableUser(user)}
+                    >
+                      <UserX className="mr-2 h-4 w-4" />
+                      Disable
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-green-600 hover:bg-green-50 hover:border-green-200 dark:hover:bg-green-950"
+                      onClick={() => handleEnableUser(user)}
+                    >
+                      <UserCheck className="mr-2 h-4 w-4" />
+                      Enable
+                    </Button>
+                  )}
+                </div>
+              )}
             </div>
-          )}
-        </CardContent>
-      </Card>
+          ))}
+        </div>
+      )}
 
       {/* Disable User Dialog */}
       <AlertDialog open={showDisableDialog} onOpenChange={setShowDisableDialog}>
@@ -228,11 +266,19 @@ export function AdminUsers() {
               <div>
                 <p>Are you sure you want to disable this user? They will no longer be able to log in or make reservations.</p>
                 {selectedUser && (
-                  <div className="mt-2 p-3 border rounded-md bg-muted/50">
-                    <div>
-                      <strong>{selectedUser.name}</strong>
+                  <div className="mt-3 p-3 border rounded-md bg-muted/50">
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-8 w-8">
+                        <AvatarImage src={selectedUser.image} alt={selectedUser.name} />
+                        <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
+                          {selectedUser.name.charAt(0).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <div className="font-medium">{selectedUser.name}</div>
+                        <div className="text-sm text-muted-foreground">{selectedUser.email}</div>
+                      </div>
                     </div>
-                    <div className="text-sm">{selectedUser.email}</div>
                   </div>
                 )}
               </div>
@@ -259,11 +305,19 @@ export function AdminUsers() {
               <div>
                 <p>Are you sure you want to enable this user? They will be able to log in and make reservations again.</p>
                 {selectedUser && (
-                  <div className="mt-2 p-3 border rounded-md bg-muted/50">
-                    <div>
-                      <strong>{selectedUser.name}</strong>
+                  <div className="mt-3 p-3 border rounded-md bg-muted/50">
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-8 w-8">
+                        <AvatarImage src={selectedUser.image} alt={selectedUser.name} />
+                        <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
+                          {selectedUser.name.charAt(0).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <div className="font-medium">{selectedUser.name}</div>
+                        <div className="text-sm text-muted-foreground">{selectedUser.email}</div>
+                      </div>
                     </div>
-                    <div className="text-sm">{selectedUser.email}</div>
                   </div>
                 )}
               </div>
@@ -283,18 +337,53 @@ export function AdminUsers() {
             <AlertDialogTitle>Update User Role</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div>
-                <p>Are you sure you want to change the role of this user?</p>
+                <p>Select a new role for this user. This will change their permissions and access level.</p>
                 {selectedUser && (
-                  <div className="mt-2 p-3 border rounded-md bg-muted/50">
-                    <div>
-                      <strong>{selectedUser.name}</strong>
+                  <div className="mt-4 space-y-4">
+                    <div className="p-3 border rounded-md bg-muted/50">
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src={selectedUser.image} alt={selectedUser.name} />
+                          <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
+                            {selectedUser.name.charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <div className="font-medium">{selectedUser.name}</div>
+                          <div className="text-sm text-muted-foreground">{selectedUser.email}</div>
+                          <div className="text-sm mt-1">
+                            <strong>Current Role:</strong> {getRoleDisplayName(selectedUser.role as UserRole)}
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-sm">{selectedUser.email}</div>
-                    <div className="text-sm mt-2">
-                      <strong>Current Role:</strong> {selectedUser.role === "admin" ? "Admin" : "User"}
-                    </div>
-                    <div className="text-sm">
-                      <strong>New Role:</strong> {newRole === "admin" ? "Admin" : "User"}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">New Role</label>
+                      <Select value={newRole} onValueChange={(value) => setNewRole(value as UserRole)}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a role" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="user">
+                            <div className="flex flex-col items-start">
+                              <span>User</span>
+                              <span className="text-xs text-muted-foreground">Can make and manage their own reservations</span>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="staff">
+                            <div className="flex flex-col items-start">
+                              <span>Staff</span>
+                              <span className="text-xs text-muted-foreground">Can manage all reservations and users</span>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="admin">
+                            <div className="flex flex-col items-start">
+                              <span>Admin</span>
+                              <span className="text-xs text-muted-foreground">Full access to all system features</span>
+                            </div>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
                 )}
@@ -303,7 +392,12 @@ export function AdminUsers() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmRoleChange}>Update Role</AlertDialogAction>
+            <AlertDialogAction 
+              onClick={confirmRoleChange}
+              disabled={!selectedUser || newRole === selectedUser.role}
+            >
+              Update Role
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

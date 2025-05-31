@@ -90,7 +90,7 @@ export interface User {
   name: string
   email: string
   image?: string
-  role: "admin" | "user"
+  role: "admin" | "staff" | "user"
   status: "active" | "inactive"
   createdAt: Date
   updatedAt: Date

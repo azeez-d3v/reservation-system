@@ -9,22 +9,32 @@ import { AdminSettings } from "@/components/admin/settings"
 import { Calendar, Clock, Settings } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth"
 import { redirect } from "next/navigation"
+import { canModifySettings, type UserRole } from "@/lib/permissions"
 
 export default function AdminPage() {
   const { user, isLoading } = useAuth()
   const [activeTab, setActiveTab] = useState("requests")
-
+    // Check if user has permission to modify settings
+  const hasSettingsAccess = user?.role ? canModifySettings(user.role as UserRole) : false
+  
   useEffect(() => {
-    if (!isLoading && (!user || user.role !== "admin")) {
+    if (!isLoading && (!user || (user.role !== "admin" && user.role !== "staff"))) {
       redirect("/dashboard")
     }
   }, [user, isLoading])
+
+  // If current tab is settings but user doesn't have access, switch to requests
+  useEffect(() => {
+    if (activeTab === "settings" && !hasSettingsAccess) {
+      setActiveTab("requests")
+    }
+  }, [activeTab, hasSettingsAccess])
 
   if (isLoading) {
     return <div className="container py-10">Loading...</div>
   }
 
-  if (!user || user.role !== "admin") {
+  if (!user || (user.role !== "admin" && user.role !== "staff")) {
     return null // This will redirect in the useEffect
   }
 
@@ -36,8 +46,7 @@ export default function AdminPage() {
           <CardDescription>Manage reservation requests and approved reservations.</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
-          <Tabs defaultValue="requests" value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <div className="px-6">
+          <Tabs defaultValue="requests" value={activeTab} onValueChange={setActiveTab} className="w-full">            <div className="px-6">
               <TabsList className="mb-0">
                 <TabsTrigger value="requests">
                   <Clock className="h-4 w-4 mr-2" />
@@ -47,14 +56,14 @@ export default function AdminPage() {
                   <Calendar className="h-4 w-4 mr-2" />
                   <span>Approved Reservations</span>
                 </TabsTrigger>
-                <TabsTrigger value="settings">
-                  <Settings className="h-4 w-4 mr-2" />
-                  <span>Settings</span>
-                </TabsTrigger>
+                {hasSettingsAccess && (
+                  <TabsTrigger value="settings">
+                    <Settings className="h-4 w-4 mr-2" />
+                    <span>Settings</span>
+                  </TabsTrigger>
+                )}
               </TabsList>
-            </div>
-
-            <div className="p-6">
+            </div>            <div className="p-6">
               <TabsContent value="requests" className="m-0">
                 <AdminRequests />
               </TabsContent>
@@ -63,9 +72,11 @@ export default function AdminPage() {
                 <AdminReservations />
               </TabsContent>
 
-              <TabsContent value="settings" className="m-0">
-                <AdminSettings />
-              </TabsContent>
+              {hasSettingsAccess && (
+                <TabsContent value="settings" className="m-0">
+                  <AdminSettings />
+                </TabsContent>
+              )}
             </div>
           </Tabs>
         </CardContent>

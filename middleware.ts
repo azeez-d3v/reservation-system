@@ -26,12 +26,10 @@ export default withAuth(
         if (token.status === "inactive") {
           console.log("Middleware - User inactive, denying access")
           return false
-        }
-
-        // Admin routes require admin role
+        }        // Admin routes require admin or staff role
         if (req.nextUrl.pathname.startsWith("/admin")) {
-          const isAdmin = token.role === "admin"
-          return isAdmin
+          const isAdminOrStaff = token.role === "admin" || token.role === "staff"
+          return isAdminOrStaff
         }
 
         // Protected routes require authentication

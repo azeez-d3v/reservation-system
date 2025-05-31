@@ -829,7 +829,7 @@ export async function updateUser(id: string, status: "active" | "inactive") {
   }
 }
 
-export async function updateUserRole(email: string, role: "admin" | "user") {
+export async function updateUserRole(email: string, role: "admin" | "staff" | "user") {
   try {
     await setUserRole(email, role)
     revalidatePath("/admin")

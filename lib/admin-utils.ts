@@ -19,7 +19,7 @@ export async function getUserRole(email: string) {
   }
 }
 
-export async function setUserRole(email: string, role: "admin" | "user") {
+export async function setUserRole(email: string, role: "admin" | "staff" | "user") {
   try {
     const userRef = adminDb.collection("users").doc(email)
     await userRef.update({

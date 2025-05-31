@@ -94,8 +94,7 @@ export function useAuth() {
       })
     }
   }, [toast])
-
-  const updateUserRole = useCallback(async (userId: string, role: "admin" | "user") => {
+  const updateUserRole = useCallback(async (userId: string, role: "admin" | "staff" | "user") => {
     try {
       await updateUserRoleFirestore(userId, role)
 
