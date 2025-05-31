@@ -2,11 +2,13 @@
 
 import { useState, useEffect } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { AdminReservationList } from "./admin-reservation-list"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { AdminReservationList } from "@/components/admin/admin-reservation-list"
 import { collection, query, orderBy, onSnapshot } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import type { Reservation } from "@/lib/types"
 import { CheckCircle, Clock, XCircle } from "lucide-react"
+import { useIsMobile } from "@/hooks/use-mobile"
 
 export function AdminReservations() {
   const [reservations, setReservations] = useState<{
@@ -21,6 +23,8 @@ export function AdminReservations() {
     rejected: []
   })
   const [isLoading, setIsLoading] = useState(true)
+  const [activeTab, setActiveTab] = useState("approved")
+  const isMobile = useIsMobile()
 
   useEffect(() => {
     // Set up real-time listener for all reservations
@@ -58,78 +62,99 @@ export function AdminReservations() {
 
     // Cleanup listener on unmount
     return () => unsubscribe()
-  }, [])
-  // Legacy fetchReservations function for compatibility with onReservationUpdate
+  }, [])  // Legacy fetchReservations function for compatibility with onReservationUpdate
   const fetchReservations = async () => {
     // This is now handled by the real-time listener
     // But we keep this function for onReservationUpdate callback compatibility
     console.log("Real-time listener is handling data updates")
   }
+
+  const statusOptions = [
+    { value: "approved", label: "Approved", icon: CheckCircle, color: "text-green-500" },
+    { value: "pending", label: "Pending", icon: Clock, color: "text-amber-500" },
+    { value: "cancelled", label: "Cancelled", icon: XCircle, color: "text-gray-500" },
+    { value: "rejected", label: "Rejected", icon: XCircle, color: "text-red-500" }
+  ]
+
+  const renderReservationList = (status: string) => {
+    const statusKey = status as keyof typeof reservations
+    const emptyMessages = {
+      approved: "No approved reservations found.",
+      pending: "No pending reservation requests found.",
+      cancelled: "No cancelled reservations found.",
+      rejected: "No rejected reservations found."
+    }
+
+    return (
+      <AdminReservationList
+        reservations={reservations[statusKey]}
+        emptyMessage={emptyMessages[statusKey]}
+        isLoading={isLoading}
+        onReservationUpdate={fetchReservations}
+        showAdminActions={true}
+        type="reservations"
+      />
+    )
+  }
+  
+  if (isMobile) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center space-x-2">
+          <Select value={activeTab} onValueChange={setActiveTab}>
+            <SelectTrigger className="w-full">
+              <SelectValue>
+                {(() => {
+                  const currentStatus = statusOptions.find(option => option.value === activeTab)
+                  const Icon = currentStatus?.icon
+                  return (
+                    <div className="flex items-center">
+                      {Icon && <Icon className={`mr-2 h-4 w-4 ${currentStatus.color}`} />}
+                      {currentStatus?.label}
+                    </div>
+                  )
+                })()}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {statusOptions.map((option) => {
+                const Icon = option.icon
+                return (
+                  <SelectItem key={option.value} value={option.value}>
+                    <div className="flex items-center">
+                      <Icon className={`mr-2 h-4 w-4 ${option.color}`} />
+                      {option.label}
+                    </div>
+                  </SelectItem>
+                )
+              })}
+            </SelectContent>
+          </Select>
+        </div>
+        {renderReservationList(activeTab)}
+      </div>
+    )
+  }
   
   return (
-    <Tabs defaultValue="approved" className="space-y-4">
+    <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
       <TabsList>
-        <TabsTrigger value="approved" className="flex items-center">
-          <CheckCircle className="mr-2 h-4 w-4 text-green-500" />
-          Approved
-        </TabsTrigger>
-        <TabsTrigger value="pending" className="flex items-center">
-          <Clock className="mr-2 h-4 w-4 text-amber-500" />
-          Pending
-        </TabsTrigger>
-        <TabsTrigger value="cancelled" className="flex items-center">
-          <XCircle className="mr-2 h-4 w-4 text-gray-500" />
-          Cancelled
-        </TabsTrigger>
-        <TabsTrigger value="rejected" className="flex items-center">
-          <XCircle className="mr-2 h-4 w-4 text-red-500" />
-          Rejected
-        </TabsTrigger>
+        {statusOptions.map((option) => {
+          const Icon = option.icon
+          return (
+            <TabsTrigger key={option.value} value={option.value} className="flex items-center">
+              <Icon className={`mr-2 h-4 w-4 ${option.color}`} />
+              {option.label}
+            </TabsTrigger>
+          )
+        })}
       </TabsList>
       
-      <TabsContent value="approved" className="space-y-4">
-        <AdminReservationList
-          reservations={reservations.approved}
-          emptyMessage="No approved reservations found."
-          isLoading={isLoading}
-          onReservationUpdate={fetchReservations}
-          showAdminActions={true}
-          type="reservations"
-        />
-      </TabsContent>
-      
-      <TabsContent value="pending" className="space-y-4">
-        <AdminReservationList
-          reservations={reservations.pending}
-          emptyMessage="No pending reservation requests found."
-          isLoading={isLoading}
-          onReservationUpdate={fetchReservations}
-          showAdminActions={true}
-          type="reservations"
-        />
-      </TabsContent>
-      
-      <TabsContent value="cancelled" className="space-y-4">
-        <AdminReservationList
-          reservations={reservations.cancelled}
-          emptyMessage="No cancelled reservations found."
-          isLoading={isLoading}
-          onReservationUpdate={fetchReservations}
-          showAdminActions={true}
-          type="reservations"
-        />
-      </TabsContent>
-      
-      <TabsContent value="rejected" className="space-y-4">
-        <AdminReservationList
-          reservations={reservations.rejected}
-          emptyMessage="No rejected reservations found."
-          isLoading={isLoading}
-          onReservationUpdate={fetchReservations}
-          showAdminActions={true}
-          type="reservations"
-        />
-      </TabsContent>
+      {statusOptions.map((option) => (
+        <TabsContent key={option.value} value={option.value} className="space-y-4">
+          {renderReservationList(option.value)}
+        </TabsContent>
+      ))}
     </Tabs>
   )
 }

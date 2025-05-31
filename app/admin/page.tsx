@@ -39,7 +39,8 @@ export default function AdminPage() {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <Card>        <CardHeader>
+      <Card>        
+        <CardHeader>
           <CardTitle>Reservation Management</CardTitle>
           <CardDescription>Manage all reservations in one place.</CardDescription>
         </CardHeader><CardContent className="p-0">

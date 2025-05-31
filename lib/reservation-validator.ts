@@ -125,18 +125,36 @@ async function validateDate(
   warnings: string[]
 ) {
   const now = new Date()
-  const oneWeekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
+  const minAdvanceBookingDays = systemSettings.minAdvanceBookingDays || 0
   
-  // Check if date is in the past
-  if (date < now) {
-    errors.push("Reservation date cannot be in the past")
-    return
-  }
-  
-  // Check minimum advance booking requirement
-  if (date < oneWeekFromNow) {
-    errors.push("Reservations must be made at least one week in advance")
-    return
+  // For same-day booking (minAdvanceBookingDays = 0), compare dates at start of day level
+  // For advance booking requirements, use precise date/time comparison
+  if (minAdvanceBookingDays === 0) {
+    // Allow same-day booking - compare start of day only
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const selectedDate = new Date(date)
+    selectedDate.setHours(0, 0, 0, 0)
+    
+    if (selectedDate < today) {
+      errors.push("Reservation date cannot be in the past")
+      return
+    }
+  } else {
+    // Check if date is in the past (precise comparison for advance booking)
+    if (date < now) {
+      errors.push("Reservation date cannot be in the past")
+      return
+    }
+    
+    // Check minimum advance booking requirement
+    const minBookableDate = new Date(now.getTime() + minAdvanceBookingDays * 24 * 60 * 60 * 1000)
+    
+    if (date < minBookableDate) {
+      const dayText = minAdvanceBookingDays === 1 ? "day" : "days"
+      errors.push(`Reservations must be made at least ${minAdvanceBookingDays} ${dayText} in advance`)
+      return
+    }
   }
   
   // Check if date is a blackout date
@@ -153,20 +171,11 @@ async function validateDate(
   const dayOfWeek = date.getDay()
   const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
   const daySchedule = timeSlotSettings.businessHours[dayNames[dayOfWeek]]
-  
-  if (!daySchedule || !daySchedule.enabled) {
+    if (!daySchedule || !daySchedule.enabled) {
     errors.push("Selected date is not available for reservations")
     return
   }
   
-  // Check maximum advance booking days if configured
-  if (systemSettings.maxAdvanceBookingDays) {
-    const maxDate = new Date(now.getTime() + systemSettings.maxAdvanceBookingDays * 24 * 60 * 60 * 1000)
-    if (date > maxDate) {
-      errors.push(`Reservations can only be made up to ${systemSettings.maxAdvanceBookingDays} days in advance`)
-    }
-  }
-
   // Add helpful warnings for edge cases
   const dayName = dayNames[dayOfWeek]
   if (daySchedule.timeSlots.length === 0) {

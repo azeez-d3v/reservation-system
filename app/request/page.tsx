@@ -12,7 +12,9 @@ import { ReservationDetailsForm } from "@/components/reservation/details-form"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Info } from "lucide-react"
-import { addWeeks } from "date-fns"
+import { addDays, startOfDay } from "date-fns"
+import { getSettings } from "@/lib/actions"
+import type { SystemSettings } from "@/lib/types"
 
 // Define the tabs in the reservation process
 type ReservationTab = "date-selection" | "time-selection" | "reservation-details"
@@ -27,12 +29,43 @@ export default function RequestPage() {  const router = useRouter()
   const [selectedStartTime, setSelectedStartTime] = useState<string>("")
   const [selectedEndTime, setSelectedEndTime] = useState<string>("")
   const [selectedDuration, setSelectedDuration] = useState<number | undefined>(undefined)
+  const [systemSettings, setSystemSettings] = useState<SystemSettings | null>(null)
 
   // Use refs to track if we've already processed URL parameters
-  const initializedRef = useRef(false)
+  const initializedRef = useRef(false)  // Calculate the minimum bookable date based on system settings
+  // Default to 0 days (same-day booking allowed) if settings not loaded or not configured
+  const minBookableDate = systemSettings 
+    ? startOfDay(addDays(new Date(), systemSettings.minAdvanceBookingDays || 0))
+    : startOfDay(new Date()) // Allow same-day booking by default
 
-  // Calculate the minimum bookable date (1 week from now)
-  const minBookableDate = addWeeks(new Date(), 1)
+  // No maximum advance booking limit
+  const maxBookableDate = null
+
+  // Fetch system settings on component mount
+  useEffect(() => {
+    const fetchSystemSettings = async () => {
+      try {
+        const settings = await getSettings()
+        setSystemSettings(settings)
+      } catch (error) {
+        console.error("Failed to fetch system settings:", error)        // Use default settings if fetch fails
+        setSystemSettings({
+          systemName: "Reservation System",
+          organizationName: "Your Organization",
+          contactEmail: "admin@example.com",
+          requireApproval: true,
+          allowOverlapping: true,
+          maxOverlappingReservations: 2,
+          publicCalendar: true,
+          reservationTypes: ["event", "training", "gym", "other"],
+          use12HourFormat: true,
+          minAdvanceBookingDays: 0
+        })
+      }
+    }
+
+    fetchSystemSettings()
+  }, [])
 
   // Check for URL parameters on initial load
   useEffect(() => {
@@ -231,14 +264,25 @@ export default function RequestPage() {  const router = useRouter()
   return (
     <DashboardShell>
       <div className="max-w-4xl mx-auto w-full">
-        <DashboardHeader heading="Request a Reservation" text="Follow the steps below to request a new reservation" />
-
-        <Alert className="mb-6">
+        <DashboardHeader heading="Request a Reservation" text="Follow the steps below to request a new reservation" />        <Alert className="mb-6">
           <Info className="h-4 w-4" />
-          <AlertTitle>Reservation Policy</AlertTitle>
-          <AlertDescription>
-            Reservations can only be made at least one week in advance. All reservation requests must be approved before
-            they are confirmed. Some time slots can accommodate multiple reservations.
+          <AlertTitle>Reservation Policy</AlertTitle>          <AlertDescription>
+            {systemSettings ? (
+              <>
+                {(systemSettings.minAdvanceBookingDays ?? 0) > 0 ? (
+                  <>
+                    Reservations must be made at least {systemSettings.minAdvanceBookingDays} day
+                    {systemSettings.minAdvanceBookingDays !== 1 ? 's' : ''} in advance.
+                  </>
+                ) : (
+                  "Same-day reservations are allowed."
+                )}
+                {" "}All reservation requests must be approved before they are confirmed. 
+                {systemSettings.allowOverlapping && " Some time slots can accommodate multiple reservations."}
+              </>
+            ) : (
+              "Loading reservation policy..."
+            )}
           </AlertDescription>
         </Alert>
       
@@ -259,13 +303,12 @@ export default function RequestPage() {  const router = useRouter()
             >
               Details
             </TabsTrigger>
-          </TabsList>
-        
-        <TabsContent value="date-selection" className="mt-4 animate-in fade-in-50">
+          </TabsList>        <TabsContent value="date-selection" className="mt-4 animate-in fade-in-50">
           <ReservationDatePicker
             selectedDate={selectedDate}
             onDateSelected={handleDateSelected}
             minBookableDate={minBookableDate}
+            maxBookableDate={maxBookableDate || undefined}
           />
         </TabsContent>
 

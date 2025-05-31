@@ -103,13 +103,27 @@ async function validateReservationAvailability(data: ReservationRequest): Promis
       getTimeSlotSettings(),
       getReservationsForDate(data.date)
     ])
-    
-    const errors: string[] = []
+      const errors: string[] = []
     const warnings: string[] = []
     
-    // Check basic date/time validity
-    if (data.date < new Date()) {
-      errors.push("Cannot create reservations for past dates")
+    // Check basic date/time validity with same-day booking support
+    const minAdvanceBookingDays = systemSettings.minAdvanceBookingDays || 0
+    
+    if (minAdvanceBookingDays === 0) {
+      // Allow same-day booking - compare start of day only
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const selectedDate = new Date(data.date)
+      selectedDate.setHours(0, 0, 0, 0)
+      
+      if (selectedDate < today) {
+        errors.push("Cannot create reservations for past dates")
+      }
+    } else {
+      // Check if date is in the past (precise comparison for advance booking)
+      if (data.date < new Date()) {
+        errors.push("Cannot create reservations for past dates")
+      }
     }
     
     // Check if date is enabled for reservations
@@ -1070,7 +1084,8 @@ export function getDefaultSystemSettings(): SystemSettings {  return {
     maxOverlappingReservations: 2,
     publicCalendar: true,
     reservationTypes: ["event", "training", "gym", "other"],
-    use12HourFormat: true
+    use12HourFormat: true,
+    minAdvanceBookingDays: 0
   }
 }
 

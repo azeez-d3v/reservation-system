@@ -66,7 +66,7 @@ export interface SystemSettings {
   publicCalendar: boolean
   reservationTypes: string[]
   use12HourFormat: boolean
-  maxAdvanceBookingDays?: number
+  minAdvanceBookingDays?: number
 }
 
 export interface EmailSettings {

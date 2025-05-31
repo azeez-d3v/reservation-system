@@ -621,8 +621,7 @@ export function AdminSettings() {
                   checked={systemSettings.publicCalendar}
                   onCheckedChange={(checked) => setSystemSettings({ ...systemSettings, publicCalendar: checked })}
                 />
-              </div>
-
+              </div>              
               <div className="space-y-2">
                 <Label htmlFor="maxConcurrentReservations">Maximum Concurrent Reservations</Label>
                 <Input
@@ -641,6 +640,25 @@ export function AdminSettings() {
                 <p className="text-sm text-muted-foreground">
                   Maximum number of reservations allowed at the same time slot (default: 2)
                 </p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="minAdvanceBookingDays">Minimum Advance Booking Days</Label>
+                  <Input
+                    id="minAdvanceBookingDays"
+                    type="number"
+                    min="0"
+                    max="365"                    value={systemSettings.minAdvanceBookingDays || 0}
+                    onChange={(e) =>
+                      setSystemSettings({
+                        ...systemSettings,
+                        minAdvanceBookingDays: Math.max(0, Number.parseInt(e.target.value) || 0),
+                      })
+                    }
+                  />                  <p className="text-sm text-muted-foreground">
+                    Minimum number of days in advance that users must book (default: 0, same-day booking allowed)
+                  </p>                </div>
               </div>
             </CardContent>
             <CardFooter>

@@ -25,9 +25,10 @@ interface ReservationDatePickerProps {
   selectedDate?: Date
   onDateSelected: (date: Date) => void
   minBookableDate: Date
+  maxBookableDate?: Date
 }
 
-export function ReservationDatePicker({ selectedDate, onDateSelected, minBookableDate }: ReservationDatePickerProps) {
+export function ReservationDatePicker({ selectedDate, onDateSelected, minBookableDate, maxBookableDate }: ReservationDatePickerProps) {
   const [availabilityMap, setAvailabilityMap] = useState<Record<string, string>>({})
   const [timeSlotSettings, setTimeSlotSettings] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -226,18 +227,32 @@ export function ReservationDatePicker({ selectedDate, onDateSelected, minBookabl
               ))}
 
               {/* Calendar days */}
-              {allDays.map((day) => {
-                const isCurrentMonth = isSameMonth(day, currentMonth)
+              {allDays.map((day) => {                
+                const isCurrentMonth = isSameMonth(day, currentMonth)                
                 const isSelected = selectedDateState ? isSameDay(day, selectedDateState) : false
                 const availability = isCurrentMonth ? checkDateAvailability(day) : "unavailable"
                 const isToday = isSameDay(day, new Date())
                 const isPast = isBefore(day, minBookableDate)
+                const isTooFarInFuture = maxBookableDate ? day > maxBookableDate : false
                 const isBookable =
-                  !isPast && availability !== "unavailable" && isCurrentMonth
+                  !isPast && !isTooFarInFuture && availability !== "unavailable" && isCurrentMonth
+
+                // Debug log for today's date to verify same-day booking
+                if (isToday) {
+                  console.log(`Date picker - Today ${format(day, "yyyy-MM-dd")}: isPast=${isPast}, availability=${availability}, isBookable=${isBookable}, minBookableDate=${format(minBookableDate, "yyyy-MM-dd HH:mm:ss")}`)
+                }
 
                 // Debug log for problematic dates (Friday and Saturday)
                 if (isCurrentMonth && (day.getDay() === 5 || day.getDay() === 6)) {
                   console.log(`Date picker - Day ${format(day, "yyyy-MM-dd")} (${day.getDay() === 5 ? 'Friday' : 'Saturday'}): availability=${availability}, isBookable=${isBookable}`)
+                }
+
+                // Determine the tooltip message
+                let tooltipMessage = ""
+                if (isPast) {
+                  tooltipMessage = "Reservations must be made in advance"
+                } else if (isTooFarInFuture) {
+                  tooltipMessage = "Date is too far in advance for booking"
                 }
 
                 return (
@@ -260,14 +275,15 @@ export function ReservationDatePicker({ selectedDate, onDateSelected, minBookabl
                           isCurrentMonth &&
                           availability === "unavailable" &&
                           !isPast &&
+                          !isTooFarInFuture &&
                           "bg-red-100 hover:bg-red-200 text-red-800",
                         isToday && !isSelected && "border border-primary",
-                        isPast && "opacity-50 cursor-not-allowed",
+                        (isPast || isTooFarInFuture) && "opacity-50 cursor-not-allowed",
                         "disabled:opacity-50 disabled:cursor-not-allowed",
                       )}
                       onClick={() => isBookable && handleDateSelect(day)}
                       disabled={!isBookable}
-                      title={isPast ? "Reservations must be at least 1 week in advance" : ""}
+                      title={tooltipMessage}
                     >
                       {format(day, "d")}
                     </button>

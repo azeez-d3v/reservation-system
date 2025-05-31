@@ -72,11 +72,11 @@ export async function getNotificationSettings() {
         }
       }
     }
-    
-    try {
+      try {
       systemSettings = await getSettings()
     } catch (systemError) {
       console.error("Failed to get system settings, using defaults:", systemError)
+      
       systemSettings = {
         systemName: "Reservation System",
         organizationName: "Your Organization",
@@ -87,7 +87,7 @@ export async function getNotificationSettings() {
         publicCalendar: true,
         reservationTypes: ["event", "training", "gym", "other"],
         use12HourFormat: true,
-        maxAdvanceBookingDays: 30
+        minAdvanceBookingDays: 0
       }
     }
     
@@ -508,11 +508,9 @@ export async function getSettings(): Promise<SystemSettings> {
       const { getDefaultSystemSettings } = await import("./firestore")
       return getDefaultSystemSettings()
     }  } catch (error) {
-    console.error("Error fetching system settings:", error)
-    // Return default settings if fetch fails
+    console.error("Error fetching system settings:", error)    // Return default settings if fetch fails
     return {
-      systemName: "Reservation System",
-      organizationName: "Your Organization", 
+      systemName: "Reservation System",      organizationName: "Your Organization", 
       contactEmail: "admin@example.com",
       requireApproval: true,
       allowOverlapping: true,
@@ -520,7 +518,7 @@ export async function getSettings(): Promise<SystemSettings> {
       publicCalendar: true,
       reservationTypes: ["event", "training", "gym", "other"],
       use12HourFormat: true,
-      maxAdvanceBookingDays: 30
+      minAdvanceBookingDays: 0
     }
   }
 }
