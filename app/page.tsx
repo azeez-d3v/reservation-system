@@ -21,7 +21,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { getDateAvailability } from "@/lib/date-availability"
-import { getPublicAvailability, getSystemSettings, getEnhancedAvailability, getTimeSlots } from "@/lib/actions"
+import { getSystemSettings, getEnhancedAvailability, getTimeSlots } from "@/lib/actions"
 import { TimeSlotGrid } from "@/components/calendar/time-slot-grid"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -241,25 +241,39 @@ export default function HomePage() {
       
       setIsLoadingDates(true)
       setError(null)
-      
-      try {
+        try {
         const startDate = startOfMonth(currentMonth)
         const endDate = endOfMonth(currentMonth)
         
-        const response = await getPublicAvailability(startDate, endDate, true)
+        // Use the API route instead of direct server action
+        const response = await fetch(
+          `/api/availability?startDate=${startDate.toISOString().split('T')[0]}&endDate=${endDate.toISOString().split('T')[0]}&includeAvailabilityMap=true`,
+          {
+            signal: abortController.signal,
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          }
+        )
         
         if (abortController.signal.aborted) return
 
-        if (!response) {
-          throw new Error("Invalid response from server")
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
         }
 
-        console.log("Availability response:", response)
-        console.log("Available dates:", response.availableDates)
-        console.log("Availability map:", response.availabilityMap)
+        const result = await response.json()
+        
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to fetch availability')
+        }
 
-        setAvailableDates(response.availableDates || [])
-        setAvailabilityMap(response.availabilityMap || {})
+        console.log("Availability response:", result.data)
+        console.log("Available dates:", result.data.availableDates)
+        console.log("Availability map:", result.data.availabilityMap)
+
+        setAvailableDates(result.data.availableDates || [])
+        setAvailabilityMap(result.data.availabilityMap || {})
       } catch (error) {
         if (!abortController.signal.aborted) {
           console.error("Failed to fetch available dates:", error)

@@ -14,7 +14,7 @@ import {
 } from "date-fns"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { getDateAvailability } from "@/lib/date-availability"
-import { getPublicAvailability, getTimeSlots } from "@/lib/actions"
+import { getTimeSlots } from "@/lib/actions"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
 import { ChevronRight, ChevronLeft } from "lucide-react"
@@ -49,7 +49,6 @@ export function ReservationDatePicker({ selectedDate, onDateSelected, minBookabl
 
     fetchTimeSlotSettings()
   }, [])
-
   // Fetch available dates for the current month
   useEffect(() => {
     // Use AbortController to cancel previous requests if component unmounts or effect reruns
@@ -67,20 +66,41 @@ export function ReservationDatePicker({ selectedDate, onDateSelected, minBookabl
           console.log("Date availability fetch is taking longer than expected");
         }, 2000);
 
-        const response = await getPublicAvailability(firstDay, lastDay, true)
+        // Use the API route instead of direct server action
+        const response = await fetch(
+          `/api/availability?startDate=${firstDay.toISOString().split('T')[0]}&endDate=${lastDay.toISOString().split('T')[0]}&includeAvailabilityMap=true`,
+          {
+            signal: abortController.signal,
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          }
+        )
         
         // Clear the timeout since request completed
         clearTimeout(timeoutId);
 
         if (abortController.signal.aborted) return;
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+
+        const result = await response.json()
         
-        console.log("Date picker - Availability response:", response)
-        console.log("Date picker - Available dates:", response.availableDates)
-        console.log("Date picker - Availability map:", response.availabilityMap)
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to fetch availability')
+        }
         
-        setAvailabilityMap(response.availabilityMap || {})
+        console.log("Date picker - Availability response:", result.data)
+        console.log("Date picker - Available dates:", result.data.availableDates)
+        console.log("Date picker - Availability map:", result.data.availabilityMap)
+        
+        setAvailabilityMap(result.data.availabilityMap || {})
       } catch (error) {
-        console.error("Failed to fetch available dates:", error)
+        if (!abortController.signal.aborted) {
+          console.error("Failed to fetch available dates:", error)
+        }
       } finally {
         if (!abortController.signal.aborted) {
           setIsLoading(false)
