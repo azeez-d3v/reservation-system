@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react"
 import { useAuth } from "@/hooks/use-auth"
 import { redirect } from "next/navigation"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { CalendarDays, Clock, CheckCircle } from "lucide-react"
+import { CalendarDays, Clock, CheckCircle, XCircle } from "lucide-react"
 import { DashboardHeader } from "@/components/dashboard/dashboard-header"
 import { DashboardShell } from "@/components/dashboard/dashboard-shell"
 import { ReservationList } from "@/components/dashboard/reservation-list"
@@ -14,9 +14,10 @@ import { getUserReservations, getUserStats } from "@/lib/actions"
 export default function DashboardPage() {
   const { user, isLoading } = useAuth()
   const [reservations, setReservations] = useState<any>({
-    active: [],
+    approved: [],
     pending: [],
-    past: [],
+    cancelled: [],
+    rejected: []
   })
   const [stats, setStats] = useState<any>(null)
   const [isLoadingData, setIsLoadingData] = useState(true)
@@ -104,17 +105,13 @@ export default function DashboardPage() {
       const [userReservations, userStats] = await Promise.all([getUserReservations(user.id), getUserStats(user.id)])
       console.log("Fetched reservations:", userReservations)
       console.log("Fetched stats:", userStats)
-      
-      // Transform the flat array of reservations into categorized groups
+        // Transform the flat array of reservations into categorized groups
       const now = new Date()
       const categorizedReservations = {
-        active: userReservations.filter(r => r.status === "approved" && new Date(r.date) >= now),
+        approved: userReservations.filter(r => r.status === "approved"),
         pending: userReservations.filter(r => r.status === "pending"),
-        past: userReservations.filter(r => 
-          (r.status === "approved" && new Date(r.date) < now) || 
-          r.status === "rejected" || 
-          r.status === "cancelled"
-        ),
+        cancelled: userReservations.filter(r => r.status === "cancelled"),
+        rejected: userReservations.filter(r => r.status === "rejected")
       }
       
       setReservations(categorizedReservations)
@@ -136,9 +133,7 @@ export default function DashboardPage() {
 
   if (!user) {
     return null // This will redirect in the useEffect
-  }
-
-  return (
+  }  return (
     <DashboardShell>
       <DashboardHeader
         heading="Dashboard"
@@ -149,28 +144,35 @@ export default function DashboardPage() {
         <DashboardStats stats={stats} isLoading={isLoadingData} />
       </div>
 
-      <Tabs defaultValue="active" className="space-y-4">
+      <Tabs defaultValue="approved" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="active" className="flex items-center">
-            <CheckCircle className="mr-2 h-4 w-4" />
-            Active
+          <TabsTrigger value="approved" className="flex items-center">
+            <CheckCircle className="mr-2 h-4 w-4 text-green-500" />
+            Approved
           </TabsTrigger>
           <TabsTrigger value="pending" className="flex items-center">
-            <Clock className="mr-2 h-4 w-4" />
+            <Clock className="mr-2 h-4 w-4 text-amber-500" />
             Pending
           </TabsTrigger>
-          <TabsTrigger value="past" className="flex items-center">
-            <CalendarDays className="mr-2 h-4 w-4" />
-            Past
+          <TabsTrigger value="cancelled" className="flex items-center">
+            <XCircle className="mr-2 h-4 w-4 text-gray-500" />
+            Cancelled
           </TabsTrigger>
-        </TabsList>        <TabsContent value="active" className="space-y-4">
+          <TabsTrigger value="rejected" className="flex items-center">
+            <XCircle className="mr-2 h-4 w-4 text-red-500" />
+            Rejected
+          </TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="approved" className="space-y-4">
           <ReservationList
-            reservations={reservations.active}
-            emptyMessage="You have no active reservations."
+            reservations={reservations.approved}
+            emptyMessage="You have no approved reservations."
             isLoading={isLoadingData}
             onReservationUpdate={fetchData}
           />
         </TabsContent>
+        
         <TabsContent value="pending" className="space-y-4">
           <ReservationList
             reservations={reservations.pending}
@@ -179,10 +181,20 @@ export default function DashboardPage() {
             onReservationUpdate={fetchData}
           />
         </TabsContent>
-        <TabsContent value="past" className="space-y-4">
+        
+        <TabsContent value="cancelled" className="space-y-4">
           <ReservationList
-            reservations={reservations.past}
-            emptyMessage="You have no past reservations."
+            reservations={reservations.cancelled}
+            emptyMessage="You have no cancelled reservations."
+            isLoading={isLoadingData}
+            onReservationUpdate={fetchData}
+          />
+        </TabsContent>
+        
+        <TabsContent value="rejected" className="space-y-4">
+          <ReservationList
+            reservations={reservations.rejected}
+            emptyMessage="You have no rejected reservations."
             isLoading={isLoadingData}
             onReservationUpdate={fetchData}
           />

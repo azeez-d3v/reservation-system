@@ -56,12 +56,13 @@ export function createColumns({
           <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       )
-    },
-    cell: ({ row }) => {
+    },    cell: ({ row }) => {
       const reservation = row.original
       return (
         <div className="space-y-1">
-          <div className="font-medium">{reservation.purpose}</div>
+          <div className="font-medium truncate max-w-[200px]" title={reservation.purpose}>
+            {reservation.purpose}
+          </div>
           <div className="flex flex-wrap gap-1">
             <Badge
               variant="outline"

@@ -92,7 +92,6 @@ export function AdminReservationList({
       </Card>
     )
   }
-
   return (
     <>
       <ReservationDataTable

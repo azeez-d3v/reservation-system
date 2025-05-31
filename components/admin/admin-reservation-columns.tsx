@@ -59,12 +59,13 @@ export function createAdminColumns({
             <ArrowUpDown className="ml-2 h-4 w-4" />
           </Button>
         )
-      },
-      cell: ({ row }) => {
+      },      cell: ({ row }) => {
         const reservation = row.original
         return (
           <div className="space-y-1">
-            <div className="font-medium">{reservation.purpose}</div>
+            <div className="font-medium truncate max-w-[200px]" title={reservation.purpose}>
+              {reservation.purpose}
+            </div>
             <div className="flex flex-wrap gap-1">
               <Badge
                 variant="outline"
@@ -176,8 +177,7 @@ export function createAdminColumns({
         const attendees = getValue() as number
         return <div className="font-medium">{attendees}</div>
       },
-    },
-    {
+    },    {
       accessorKey: "status",
       header: "Status",
       cell: ({ row }) => {
@@ -203,9 +203,6 @@ export function createAdminColumns({
             {status}
           </Badge>
         )
-      },
-      filterFn: (row, id, value) => {
-        return value.length === 0 || value.includes(row.getValue(id))
       },
     },
     {
@@ -254,10 +251,9 @@ export function createAdminColumns({
               <DropdownMenuItem onClick={() => onViewDetails(reservation)}>
                 <Eye className="mr-2 h-4 w-4" />
                 View details
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
+              </DropdownMenuItem>              <DropdownMenuSeparator />
               
-              {type === "requests" && reservation.status === "pending" && (
+              {reservation.status === "pending" && (
                 <>
                   <DropdownMenuItem 
                     onClick={() => onAdminAction(reservation, "approve")}
@@ -276,7 +272,7 @@ export function createAdminColumns({
                 </>
               )}
               
-              {type === "reservations" && reservation.status === "approved" && (
+              {reservation.status === "approved" && (
                 <DropdownMenuItem 
                   onClick={() => onAdminAction(reservation, "cancel")}
                   className="text-red-600"

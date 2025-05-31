@@ -36,14 +36,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { 
+import {
   ChevronLeft, 
   ChevronRight, 
   ChevronsLeft, 
   ChevronsRight, 
   Settings2,
-  Search,
-  Filter
+  Search
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 
@@ -118,8 +117,7 @@ export function ReservationDataTable<TData, TValue>({
   return (
     <div className="space-y-4">
       {/* Filters and Controls */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="flex flex-1 flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">        <div className="flex flex-1 flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
           {/* Search */}
           <div className="relative">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -132,27 +130,6 @@ export function ReservationDataTable<TData, TValue>({
               className="pl-8 max-w-sm"
             />
           </div>
-            {/* Status Filter */}
-          <Select
-            value={(table.getColumn("status")?.getFilterValue() as string[])?.length > 0 
-              ? (table.getColumn("status")?.getFilterValue() as string[])[0] 
-              : "all"}
-            onValueChange={(value) =>
-              table.getColumn("status")?.setFilterValue(value === "all" ? [] : [value])
-            }
-          >
-            <SelectTrigger className="w-[150px]">
-              <Filter className="mr-2 h-4 w-4" />
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="pending">Pending</SelectItem>
-              <SelectItem value="approved">Approved</SelectItem>
-              <SelectItem value="rejected">Rejected</SelectItem>
-              <SelectItem value="cancelled">Cancelled</SelectItem>
-            </SelectContent>
-          </Select>
         </div>
 
         {/* Column Visibility */}
@@ -186,13 +163,15 @@ export function ReservationDataTable<TData, TValue>({
               })}
           </DropdownMenuContent>
         </DropdownMenu>
-      </div>
-
-      {/* Results Summary */}
+      </div>      {/* Results Summary */}
       {table.getFilteredRowModel().rows.length > 0 && (
         <div className="flex items-center justify-between text-sm text-muted-foreground">
           <div>
-            Showing {table.getRowModel().rows.length} of{" "}
+            Showing {table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1}-
+            {Math.min(
+              (table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize,
+              table.getFilteredRowModel().rows.length
+            )} of{" "}
             {table.getFilteredRowModel().rows.length} reservation(s)
           </div>
           {table.getFilteredSelectedRowModel().rows.length > 0 && (

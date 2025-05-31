@@ -3,18 +3,17 @@
 import { useState, useEffect } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { AdminRequests } from "@/components/admin/requests-new"
 import { AdminReservations } from "@/components/admin/reservations-new"
 import { AdminSettings } from "@/components/admin/settings"
-import { Calendar, Clock, Settings } from "lucide-react"
+import { Calendar, Settings } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth"
 import { redirect } from "next/navigation"
 import { canModifySettings, type UserRole } from "@/lib/permissions"
 
 export default function AdminPage() {
   const { user, isLoading } = useAuth()
-  const [activeTab, setActiveTab] = useState("requests")
-    // Check if user has permission to modify settings
+  const [activeTab, setActiveTab] = useState("reservations")
+  // Check if user has permission to modify settings
   const hasSettingsAccess = user?.role ? canModifySettings(user.role as UserRole) : false
   
   useEffect(() => {
@@ -23,10 +22,10 @@ export default function AdminPage() {
     }
   }, [user, isLoading])
 
-  // If current tab is settings but user doesn't have access, switch to requests
+  // If current tab is settings but user doesn't have access, switch to reservations
   useEffect(() => {
     if (activeTab === "settings" && !hasSettingsAccess) {
-      setActiveTab("requests")
+      setActiveTab("reservations")
     }
   }, [activeTab, hasSettingsAccess])
 
@@ -40,21 +39,16 @@ export default function AdminPage() {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <Card>
-        <CardHeader>
+      <Card>        <CardHeader>
           <CardTitle>Reservation Management</CardTitle>
-          <CardDescription>Manage reservation requests and approved reservations.</CardDescription>
-        </CardHeader>
-        <CardContent className="p-0">
-          <Tabs defaultValue="requests" value={activeTab} onValueChange={setActiveTab} className="w-full">            <div className="px-6">
+          <CardDescription>Manage all reservations in one place.</CardDescription>
+        </CardHeader><CardContent className="p-0">
+          <Tabs defaultValue="reservations" value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <div className="px-6">
               <TabsList className="mb-0">
-                <TabsTrigger value="requests">
-                  <Clock className="h-4 w-4 mr-2" />
-                  <span>Pending Requests</span>
-                </TabsTrigger>
                 <TabsTrigger value="reservations">
                   <Calendar className="h-4 w-4 mr-2" />
-                  <span>Approved Reservations</span>
+                  <span>Reservations</span>
                 </TabsTrigger>
                 {hasSettingsAccess && (
                   <TabsTrigger value="settings">
@@ -63,11 +57,8 @@ export default function AdminPage() {
                   </TabsTrigger>
                 )}
               </TabsList>
-            </div>            <div className="p-6">
-              <TabsContent value="requests" className="m-0">
-                <AdminRequests />
-              </TabsContent>
-
+            </div>
+            <div className="p-6">
               <TabsContent value="reservations" className="m-0">
                 <AdminReservations />
               </TabsContent>
