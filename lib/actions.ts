@@ -896,8 +896,7 @@ export async function checkAvailability(date: Date, startTime: string, endTime: 
 
 // Public availability function for date picker
 export async function getPublicAvailability(startDate: Date, endDate: Date, includeAvailabilityMap: boolean = true) {
-  try {
-    // If startDate and endDate are the same, return time slots for that specific date
+  try {    // If startDate and endDate are the same, return time slots for that specific date
     if (startDate.toDateString() === endDate.toDateString()) {
       try {
         const timeSlots = await getAvailableSlots(startDate)
@@ -905,14 +904,30 @@ export async function getPublicAvailability(startDate: Date, endDate: Date, incl
         const availabilityMap: Record<string, string> = {}
         const availableDates: string[] = []
         
-        if (timeSlots.some(slot => slot.available)) {
-          availabilityMap[dateKey] = "available"
-          availableDates.push(dateKey)
-        } else if (timeSlots.some(slot => slot.status === "limited")) {
-          availabilityMap[dateKey] = "limited"
-          availableDates.push(dateKey)
-        } else {
+        // If no slots are available (e.g., day is disabled), mark as unavailable
+        if (timeSlots.length === 0) {
           availabilityMap[dateKey] = "unavailable"
+        } else {          const availableSlots = timeSlots.filter(slot => slot.status === "available")
+          const limitedSlots = timeSlots.filter(slot => slot.status === "limited")
+          const fullSlots = timeSlots.filter(slot => slot.status === "full" || slot.status === "unavailable")
+          const totalSlots = timeSlots.length
+          
+          // Determine date availability based on slot statuses
+          if (availableSlots.length === totalSlots) {
+            // All slots are available
+            availabilityMap[dateKey] = "available"
+            availableDates.push(dateKey)
+          } else if (fullSlots.length === totalSlots || (availableSlots.length === 0 && limitedSlots.length === 0)) {
+            // All slots are full/unavailable OR no available/limited slots
+            availabilityMap[dateKey] = "unavailable"
+          } else if (availableSlots.length > 0 || limitedSlots.length > 0) {
+            // Mix of available, limited, and/or full slots (some slots still bookable)
+            availabilityMap[dateKey] = "limited"
+            availableDates.push(dateKey)
+          } else {
+            // Fallback - mark as unavailable
+            availabilityMap[dateKey] = "unavailable"
+          }
         }
         
         return {
@@ -954,9 +969,7 @@ export async function getPublicAvailability(startDate: Date, endDate: Date, incl
       }
     })
 
-    const results = await Promise.all(slotsPromises)
-
-    // Process results
+    const results = await Promise.all(slotsPromises)    // Process results
     for (const { date, slots, error } of results) {
       const dateKey = date.toISOString().split('T')[0]
       
@@ -965,15 +978,29 @@ export async function getPublicAvailability(startDate: Date, endDate: Date, incl
         continue
       }
 
-      const availableSlots = slots.filter(slot => slot.available)
+      // If no slots are available (e.g., day is disabled), mark as unavailable
+      if (slots.length === 0) {
+        availabilityMap[dateKey] = "unavailable"
+        continue
+      }      const availableSlots = slots.filter(slot => slot.status === "available")
       const limitedSlots = slots.filter(slot => slot.status === "limited")
+      const fullSlots = slots.filter(slot => slot.status === "full" || slot.status === "unavailable")
+      const totalSlots = slots.length
       
-      if (availableSlots.length > 0) {
+      // Determine date availability based on slot statuses
+      if (availableSlots.length === totalSlots) {
+        // All slots are available
         availabilityMap[dateKey] = "available"
         availableDates.push(dateKey)
-      } else if (limitedSlots.length > 0) {
+      } else if (fullSlots.length === totalSlots || (availableSlots.length === 0 && limitedSlots.length === 0)) {
+        // All slots are full/unavailable OR no available/limited slots
+        availabilityMap[dateKey] = "unavailable"
+      } else if (availableSlots.length > 0 || limitedSlots.length > 0) {
+        // Mix of available, limited, and/or full slots (some slots still bookable)
         availabilityMap[dateKey] = "limited"
+        availableDates.push(dateKey)
       } else {
+        // Fallback - mark as unavailable
         availabilityMap[dateKey] = "unavailable"
       }
     }
