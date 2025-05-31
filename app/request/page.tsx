@@ -17,8 +17,7 @@ import { addWeeks } from "date-fns"
 // Define the tabs in the reservation process
 type ReservationTab = "date-selection" | "time-selection" | "reservation-details"
 
-export default function RequestPage() {
-  const router = useRouter()
+export default function RequestPage() {  const router = useRouter()
   const searchParams = useSearchParams()
   const { user, isLoading: authLoading } = useAuth()
 
@@ -89,8 +88,7 @@ export default function RequestPage() {
 
             if (sessionData.duration) {
               setSelectedDuration(sessionData.duration)
-            }
-          } catch (error) {
+            }          } catch (error) {
             console.error('Error fetching session data:', error)
             // Fallback to URL parameters if session fetch fails
             const dateParam = searchParams.get("date")

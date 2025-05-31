@@ -11,10 +11,11 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useToast } from "@/components/ui/use-toast"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Skeleton } from "@/components/ui/skeleton"
 import { submitReservation, getSystemSettings } from "@/lib/actions"
 import { useAuth } from "@/hooks/use-auth"
-import { CalendarDays, Clock, Users, FileText, Loader2 } from "lucide-react"
+import { CalendarDays, Clock, Users, FileText, Loader2, CheckCircle, AlertCircle } from "lucide-react"
 import type { SystemSettings } from "@/lib/types"
 
 interface ReservationDetailsFormProps {
@@ -26,7 +27,6 @@ interface ReservationDetailsFormProps {
 
 export function ReservationDetailsForm({ selectedDate, startTime, endTime, onBack }: ReservationDetailsFormProps) {
   const router = useRouter()
-  const { toast } = useToast()
   const { user } = useAuth()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [reservationType, setReservationType] = useState("")
@@ -35,6 +35,13 @@ export function ReservationDetailsForm({ selectedDate, startTime, endTime, onBac
   const [notes, setNotes] = useState("")
   const [settings, setSettings] = useState<SystemSettings | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  
+  // Submission dialog state
+  const [showSubmissionDialog, setShowSubmissionDialog] = useState(false)
+  const [submissionStatus, setSubmissionStatus] = useState<'loading' | 'success' | 'error'>('loading')
+  const [submissionMessage, setSubmissionMessage] = useState("")
+  const [submissionErrors, setSubmissionErrors] = useState<string[]>([])
+  const [redirectCountdown, setRedirectCountdown] = useState(5)
   
   // Fetch system settings when component mounts
   useEffect(() => {
@@ -74,10 +81,15 @@ export function ReservationDetailsForm({ selectedDate, startTime, endTime, onBac
       console.error("Error calculating end time:", e);
       return "—";
     }
-  })()
+  })();
+  
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
+    setShowSubmissionDialog(true)
+    setSubmissionStatus('loading')
+    setSubmissionMessage("Submitting your reservation request...")
+    setSubmissionErrors([])
 
     try {
       const result = await submitReservation({
@@ -86,7 +98,7 @@ export function ReservationDetailsForm({ selectedDate, startTime, endTime, onBac
         email: user?.email || "",
         date: selectedDate,
         startTime,
-        endTime: displayEndTime, // Use the calculated end time
+        endTime: displayEndTime,
         purpose,
         attendees: Number.parseInt(attendees, 10),
         type: reservationType,
@@ -94,59 +106,64 @@ export function ReservationDetailsForm({ selectedDate, startTime, endTime, onBac
       })
 
       if (!result.success) {
-        // Show validation errors in toast
+        // Handle validation errors
         if (result.errors && result.errors.length > 0) {
-          toast({
-            title: "Validation Failed",
-            description: result.errors.join(". "),
-            variant: "destructive",
-          })
-          
-          // Show warnings separately if any
-          if (result.warnings && result.warnings.length > 0) {
-            setTimeout(() => {
-              toast({
-                title: "Warnings",
-                description: result.warnings.join(". "),
-                variant: "default",
-              })
-            }, 2000)
-          }
+          setSubmissionStatus('error')
+          setSubmissionMessage("Validation Failed")
+          setSubmissionErrors(result.errors)
           return
         }
         
         throw new Error(result.message)
       }
 
-      // Show warnings if any, even on success
+      // Success case
+      setSubmissionStatus('success')
       if (result.warnings && result.warnings.length > 0) {
-        toast({
-          title: "Reservation Submitted with Warnings",
-          description: `Your request has been submitted but note: ${result.warnings.join(". ")}`,
-          variant: "default",
-        })
+        setSubmissionMessage("Reservation submitted with warnings")
+        setSubmissionErrors(result.warnings)
       } else {
-        toast({
-          title: "Reservation Request Submitted",
-          description: "Your request has been submitted and is pending approval.",
-        })
+        setSubmissionMessage("Reservation request submitted successfully!")
+        setSubmissionErrors([])
       }
-
-      router.push("/dashboard")
+      
+      // Start countdown timer
+      startRedirectCountdown()
+      
     } catch (error) {
       console.error("Error submitting reservation:", error)
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "There was a problem submitting your request.",
-        variant: "destructive",
-      })
+      setSubmissionStatus('error')
+      setSubmissionMessage("Submission failed")
+      setSubmissionErrors([error instanceof Error ? error.message : "There was a problem submitting your request."])
     } finally {
       setIsSubmitting(false)
     }
   }
+  const startRedirectCountdown = () => {
+    setRedirectCountdown(5)
+  }
 
+  // Handle countdown timer with useEffect
+  useEffect(() => {
+    if (submissionStatus === 'success' && redirectCountdown > 0) {
+      const timer = setTimeout(() => {
+        if (redirectCountdown === 1) {
+          router.push("/dashboard")
+        } else {
+          setRedirectCountdown(prev => prev - 1)
+        }
+      }, 1000)
+
+      return () => clearTimeout(timer)
+    }
+  }, [submissionStatus, redirectCountdown, router])
+
+  const handleManualRedirect = () => {
+    router.push("/dashboard")
+  }
   return (
-    <Card className="w-full">
+    <>
+      <Card className="w-full">
       <CardHeader>
         <CardTitle>Reservation Details</CardTitle>
         <CardDescription>Provide details for your reservation</CardDescription>
@@ -251,9 +268,104 @@ export function ReservationDetailsForm({ selectedDate, startTime, endTime, onBac
             ) : (
               "Submit Reservation Request"
             )}
-          </Button>
-        </CardFooter>
-      </form>
-    </Card>
+          </Button>        </CardFooter>
+      </form>      </Card>
+
+      {/* Submission Dialog */}
+      <Dialog open={showSubmissionDialog} onOpenChange={setShowSubmissionDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {submissionStatus === 'loading' && (
+                <>
+                  <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                  Submitting Request
+                </>
+              )}
+              {submissionStatus === 'success' && (
+                <>
+                  <CheckCircle className="h-5 w-5 text-green-600" />
+                  Success
+                </>
+              )}
+              {submissionStatus === 'error' && (
+                <>
+                  <AlertCircle className="h-5 w-5 text-red-600" />
+                  Error
+                </>
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              {submissionMessage}
+            </DialogDescription>
+          </DialogHeader>
+            <div className="py-4">            {submissionStatus === 'loading' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-center py-8">
+                  <div className="text-center space-y-4">
+                    <div className="space-y-2">
+                      <Skeleton className="h-4 w-48 mx-auto" />
+                      <Skeleton className="h-3 w-32 mx-auto" />
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Processing your reservation request...
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {submissionErrors.length > 0 && submissionStatus !== 'loading' && (
+              <div className="space-y-2">
+                {submissionStatus === 'error' ? (
+                  <div className="text-sm text-red-600">
+                    <ul className="list-disc list-inside space-y-1">
+                      {submissionErrors.map((error, index) => (
+                        <li key={index}>{error}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : (
+                  <div className="text-sm text-amber-600">
+                    <p className="font-medium mb-1">Warnings:</p>
+                    <ul className="list-disc list-inside space-y-1">
+                      {submissionErrors.map((warning, index) => (
+                        <li key={index}>{warning}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {submissionStatus === 'success' && (
+              <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-md">
+                <p className="text-sm text-green-800 mb-2">
+                  Your reservation request has been submitted and is pending approval.
+                </p>
+                <p className="text-sm text-green-700">
+                  Redirecting to dashboard in {redirectCountdown} seconds...
+                </p>
+              </div>
+            )}
+          </div>
+          
+          <div className="flex justify-end gap-2">
+            {submissionStatus === 'error' && (
+              <Button 
+                variant="outline" 
+                onClick={() => setShowSubmissionDialog(false)}
+              >
+                Close
+              </Button>
+            )}
+            {submissionStatus === 'success' && (
+              <Button onClick={handleManualRedirect}>
+                Go to Dashboard
+              </Button>
+            )}
+          </div>
+        </DialogContent>      </Dialog>
+    </>
   )
 }
