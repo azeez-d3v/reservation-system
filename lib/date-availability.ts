@@ -1,4 +1,12 @@
-import { format } from "date-fns"
+import { format, isToday } from "date-fns"
+
+/**
+ * Convert time string to minutes since midnight
+ */
+function timeToMinutes(time: string): number {
+  const [hours, minutes] = time.split(":").map(Number)
+  return hours * 60 + minutes
+}
 
 /**
  * Check if a date is available for booking based on business hours and backend availability
@@ -25,6 +33,25 @@ export function getDateAvailability(
   if (!daySchedule?.enabled || !daySchedule.timeSlots?.length) {
     console.log(`Day ${dayName} (${dayOfWeek}) is disabled in business hours`)
     return "unavailable"
+  }
+  
+  // Check if this is today - if so, compare current time with latest available time slot
+  if (isToday(date)) {
+    const now = new Date()
+    const currentTimeMinutes = now.getHours() * 60 + now.getMinutes()
+    
+    // Find the latest time slot end time for today
+    let latestEndTime = 0
+    for (const timeSlot of daySchedule.timeSlots) {
+      const endTimeMinutes = timeToMinutes(timeSlot.end)
+      latestEndTime = Math.max(latestEndTime, endTimeMinutes)
+    }
+    
+    // If current time has passed the latest available time slot, mark as unavailable
+    if (currentTimeMinutes >= latestEndTime) {
+      console.log(`Date ${dateString} is unavailable - current time (${now.getHours()}:${now.getMinutes().toString().padStart(2, "0")}) has passed latest time slot end (${Math.floor(latestEndTime / 60)}:${(latestEndTime % 60).toString().padStart(2, "0")})`)
+      return "unavailable"
+    }
   }
   
   // Then check the availability map from the backend

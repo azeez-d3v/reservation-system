@@ -32,9 +32,21 @@ export function AdminReservationList({
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false)
   const [actionDialogOpen, setActionDialogOpen] = useState(false)
   const [actionType, setActionType] = useState<"approve" | "reject" | "cancel" | null>(null)
+  // Helper function to check if reservation is past its date and time
+  const isReservationPast = (date: Date, endTime: string) => {
+    const now = new Date()
+    const reservationDate = new Date(date)
+    const [hours, minutes] = endTime.split(':').map(Number)
+    reservationDate.setHours(hours, minutes, 0, 0)
+    return reservationDate < now
+  }
 
-  // Transform the reservation data to match our table interface
-  const tableData: AdminReservationTableData[] = reservations.map((reservation) => ({
+  // Filter out past reservations and transform the remaining data
+  const futureReservations = reservations.filter(reservation => 
+    !isReservationPast(new Date(reservation.date), reservation.endTime)
+  )
+
+  const tableData: AdminReservationTableData[] = futureReservations.map((reservation) => ({
     id: reservation.id,
     purpose: reservation.purpose,
     date: new Date(reservation.date),
@@ -75,9 +87,8 @@ export function AdminReservationList({
     showAdminActions,
     type,
   })
-
-  // If no reservations and not loading, show empty state
-  if (!isLoading && (!reservations || reservations.length === 0)) {
+  // If no future reservations and not loading, show empty state
+  if (!isLoading && (!futureReservations || futureReservations.length === 0)) {
     return (
       <Card>
         <CardContent className="flex flex-col items-center justify-center py-10 text-center">
