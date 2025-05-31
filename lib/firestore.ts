@@ -1120,12 +1120,10 @@ function getDefaultTimeSlotSettings(): TimeSlotSettings {
         enabled: false,
         timeSlots: [],
       },
-    },
-    blackoutDates: [],
+    },    blackoutDates: [],
     minDuration: 30,
     maxDuration: 240,
     timeSlotInterval: 30,
-    bufferTime: 15,
   }
 }
 

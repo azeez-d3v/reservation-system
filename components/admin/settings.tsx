@@ -94,11 +94,30 @@ export function AdminSettings() {
       return null
     }
   }
-
   const clearLocalStorage = () => {
     Object.values(STORAGE_KEYS).forEach(key => {
       localStorage.removeItem(key)
     })
+  }
+
+  // Clean up any localStorage entries that might contain the old bufferTime property
+  const cleanupBufferTimeFromLocalStorage = () => {
+    try {
+      // Check and clean cached settings
+      const cached = loadFromLocalStorage(STORAGE_KEYS.cache)
+      if (cached && cached.timeSlots && cached.timeSlots.bufferTime !== undefined) {
+        localStorage.removeItem(STORAGE_KEYS.cache)
+        localStorage.removeItem(STORAGE_KEYS.cacheTimestamp)
+      }
+
+      // Check and clean time slots draft
+      const timeSlotsDraft = loadFromLocalStorage(STORAGE_KEYS.timeSlots)
+      if (timeSlotsDraft && timeSlotsDraft.bufferTime !== undefined) {
+        localStorage.removeItem(STORAGE_KEYS.timeSlots)
+      }
+    } catch (error) {
+      console.warn('Failed to cleanup bufferTime from localStorage:', error)
+    }
   }
 
   // Cache helpers
@@ -117,11 +136,13 @@ export function AdminSettings() {
     saveToLocalStorage(STORAGE_KEYS.cache, settings)
     saveToLocalStorage(STORAGE_KEYS.cacheTimestamp, Date.now())
   }
-
   useEffect(() => {
     const fetchSettings = async () => {
       setIsLoading(true)
       try {
+        // Clean up any old localStorage entries with bufferTime
+        cleanupBufferTimeFromLocalStorage()
+        
         // Check cache first
         const cachedSettings = getCachedSettings()
         if (cachedSettings) {
@@ -817,9 +838,7 @@ export function AdminSettings() {
                     }
                   />
                 </div>
-              </div>
-
-              <div className="space-y-2">
+              </div>              <div className="space-y-2">
                 <Label htmlFor="timeSlotInterval">Time Slot Interval (minutes)</Label>
                 <Select
                   value={timeSlotSettings.timeSlotInterval.toString()}
@@ -839,26 +858,6 @@ export function AdminSettings() {
                     <SelectItem value="60">1 hour</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="bufferTime">Buffer Time Between Reservations (minutes)</Label>
-                <Input
-                  id="bufferTime"
-                  type="number"
-                  min="0"
-                  step="5"
-                  value={timeSlotSettings.bufferTime}
-                  onChange={(e) =>
-                    setTimeSlotSettings({
-                      ...timeSlotSettings,
-                      bufferTime: Number.parseInt(e.target.value),
-                    })
-                  }
-                />
-                <p className="text-sm text-muted-foreground">
-                  Buffer time is added after each reservation to allow for cleanup or preparation.
-                </p>
               </div>
             </CardContent>
             <CardFooter>

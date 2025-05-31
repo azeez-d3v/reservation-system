@@ -568,7 +568,7 @@ export async function getTimeSlots(): Promise<TimeSlotSettings> {
         blackoutDates: data?.blackoutDates?.map((bd: any) => ({
           ...bd,
           date: bd.date?.toDate ? bd.date.toDate().toISOString() : new Date(bd.date).toISOString()
-        })) || [],
+                })) || [],
         // Convert updatedAt timestamp to ISO string if it exists
         ...(data?.updatedAt && { updatedAt: data.updatedAt.toDate().toISOString() })
       }
@@ -618,8 +618,7 @@ export async function getTimeSlots(): Promise<TimeSlotSettings> {
         blackoutDates: [],
         minDuration: 30,
         maxDuration: 240,
-        timeSlotInterval: 30,
-        bufferTime: 15
+        timeSlotInterval: 30
       }
     }
   } catch (error) {
@@ -661,15 +660,13 @@ export async function getTimeSlots(): Promise<TimeSlotSettings> {
             { id: "9", start: "08:00", end: "12:00" },
             { id: "10", start: "13:00", end: "17:00" }
           ]
-        },
-        saturday: { enabled: false, timeSlots: [] },
+        },        saturday: { enabled: false, timeSlots: [] },
         sunday: { enabled: false, timeSlots: [] }
       },
       blackoutDates: [],
       minDuration: 30,
       maxDuration: 240,
-      timeSlotInterval: 30,
-      bufferTime: 15
+      timeSlotInterval: 30
     }
   }
 }

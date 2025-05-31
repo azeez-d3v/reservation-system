@@ -36,7 +36,6 @@ export interface TimeSlotSettings {
   minDuration: number
   maxDuration: number
   timeSlotInterval: number
-  bufferTime: number
   timeSlots?: TimeSlot[]
 }
 
