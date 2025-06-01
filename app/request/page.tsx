@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/hooks/use-auth"
 import { redirect } from "next/navigation"
@@ -30,13 +30,18 @@ export default function RequestPage() {  const router = useRouter()
   const [selectedEndTime, setSelectedEndTime] = useState<string>("")
   const [selectedDuration, setSelectedDuration] = useState<number | undefined>(undefined)
   const [systemSettings, setSystemSettings] = useState<SystemSettings | null>(null)
-
   // Use refs to track if we've already processed URL parameters
-  const initializedRef = useRef(false)  // Calculate the minimum bookable date based on system settings
-  // Default to 0 days (same-day booking allowed) if settings not loaded or not configured
-  const minBookableDate = systemSettings 
-    ? startOfDay(addDays(new Date(), systemSettings.minAdvanceBookingDays || 0))
-    : startOfDay(new Date()) // Allow same-day booking by default
+  const initializedRef = useRef(false)
+
+  // Calculate the minimum bookable date based on system settings
+  // Use useMemo to recalculate when systemSettings changes
+  const minBookableDate = useMemo(() => {
+    if (!systemSettings) {
+      // Return null while settings are loading to prevent incorrect initial calculation
+      return null
+    }
+    return startOfDay(addDays(new Date(), systemSettings.minAdvanceBookingDays || 0))
+  }, [systemSettings])
 
   // No maximum advance booking limit
   const maxBookableDate = null
@@ -304,12 +309,18 @@ export default function RequestPage() {  const router = useRouter()
               Details
             </TabsTrigger>
           </TabsList>        <TabsContent value="date-selection" className="mt-4 animate-in fade-in-50">
-          <ReservationDatePicker
-            selectedDate={selectedDate}
-            onDateSelected={handleDateSelected}
-            minBookableDate={minBookableDate}
-            maxBookableDate={maxBookableDate || undefined}
-          />
+          {minBookableDate !== null ? (
+            <ReservationDatePicker
+              selectedDate={selectedDate}
+              onDateSelected={handleDateSelected}
+              minBookableDate={minBookableDate}
+              maxBookableDate={maxBookableDate || undefined}
+            />
+          ) : (
+            <div className="flex flex-col items-center justify-center py-12 text-center border rounded-md bg-muted/10 p-8 shadow-sm">
+              <p className="text-muted-foreground">Loading reservation settings...</p>
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="time-selection" className="mt-4 animate-in fade-in-50">

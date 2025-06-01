@@ -10,7 +10,8 @@ import {
   eachDayOfInterval,
   isSameMonth,
   isSameDay,
-  addWeeks,
+  addDays,
+  startOfDay,
   isBefore,
   parse,
   addMinutes,
@@ -85,12 +86,17 @@ export default function HomePage() {
   // Refs for cleanup
   const datesFetchRef = useRef<AbortController | null>(null)
   const timeSlotsFetchRef = useRef<AbortController | null>(null)
-  
-  // Dynamic operational hours based on selected date and settings
+    // Dynamic operational hours based on selected date and settings
   const [operationalHours, setOperationalHours] = useState({ start: "08:00", end: "17:00" })
   
-  // Calculate the minimum bookable date (1 week from now) - memoized
-  const minBookableDate = useMemo(() => addWeeks(new Date(), 1), [])
+  // Calculate the minimum bookable date based on system settings - memoized
+  const minBookableDate = useMemo(() => {
+    if (!systemSettings) {
+      // Return null while settings are loading to prevent incorrect initial calculation
+      return null
+    }
+    return startOfDay(addDays(new Date(), systemSettings.minAdvanceBookingDays || 0))
+  }, [systemSettings])
 
   // Helper functions - memoized to prevent re-renders
   const formatTimeForDisplay = useCallback((time: string) => {
@@ -614,18 +620,17 @@ export default function HomePage() {
                         <Skeleton className="h-full w-full rounded-md" />
                       </div>
                     ))
-                  : allDays.map((day) => {
-                      const isCurrentMonth = isSameMonth(day, currentMonth)
+                  : allDays.map((day) => {                      const isCurrentMonth = isSameMonth(day, currentMonth)
                       const isSelected = selectedDate ? isSameDay(day, selectedDate) : false
                       const availability = isCurrentMonth ? checkDateAvailability(day) : "unavailable"
                       const isToday = isSameDay(day, new Date())
-                      const isPast = isBefore(day, minBookableDate)
+                      const isPast = minBookableDate ? isBefore(day, minBookableDate) : false
                       const isBookable = !isPast && availability !== "unavailable" && isCurrentMonth
 
-                      // Debug log for problematic dates
-                      if (isCurrentMonth && (day.getDay() === 5 || day.getDay() === 6)) {
-                        console.log(`Day ${format(day, "yyyy-MM-dd")} (${day.getDay() === 5 ? 'Friday' : 'Saturday'}): availability=${availability}, isBookable=${isBookable}`)
-                      }
+                      // // Debug log for problematic dates
+                      // if (isCurrentMonth && (day.getDay() === 5 || day.getDay() === 6)) {
+                      //   console.log(`Day ${format(day, "yyyy-MM-dd")} (${day.getDay() === 5 ? 'Friday' : 'Saturday'}): availability=${availability}, isBookable=${isBookable}`)
+                      // }
 
                       return (
                         <div key={day.toString()} className="aspect-square p-1">

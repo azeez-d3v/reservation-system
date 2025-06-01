@@ -49,7 +49,7 @@ export function getDateAvailability(
     
     // If current time has passed the latest available time slot, mark as unavailable
     if (currentTimeMinutes >= latestEndTime) {
-      console.log(`Date ${dateString} is unavailable - current time (${now.getHours()}:${now.getMinutes().toString().padStart(2, "0")}) has passed latest time slot end (${Math.floor(latestEndTime / 60)}:${(latestEndTime % 60).toString().padStart(2, "0")})`)
+      // console.log(`Date ${dateString} is unavailable - current time (${now.getHours()}:${now.getMinutes().toString().padStart(2, "0")}) has passed latest time slot end (${Math.floor(latestEndTime / 60)}:${(latestEndTime % 60).toString().padStart(2, "0")})`)
       return "unavailable"
     }
   }
@@ -61,7 +61,7 @@ export function getDateAvailability(
   const finalAvailability = backendAvailability === "full" ? "unavailable" : backendAvailability
   
   // Log for debugging
-  console.log(`Date: ${dateString}, Day: ${dayName} (${dayOfWeek}), Backend: ${backendAvailability}, Final: ${finalAvailability}, BusinessHours: ${daySchedule?.enabled}`)
+  // console.log(`Date: ${dateString}, Day: ${dayName} (${dayOfWeek}), Backend: ${backendAvailability}, Final: ${finalAvailability}, BusinessHours: ${daySchedule?.enabled}`)
   
   return (finalAvailability as "available" | "limited" | "unavailable") || "unavailable"
 }

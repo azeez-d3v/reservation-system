@@ -24,7 +24,7 @@ import { cn } from "@/lib/utils"
 interface ReservationDatePickerProps {
   selectedDate?: Date
   onDateSelected: (date: Date) => void
-  minBookableDate: Date
+  minBookableDate: Date | null
   maxBookableDate?: Date
 }
 
@@ -41,8 +41,8 @@ export function ReservationDatePicker({ selectedDate, onDateSelected, minBookabl
       try {
         const settings = await getTimeSlots()
         setTimeSlotSettings(settings)
-        console.log("Date picker - Time slot settings loaded:", settings)
-        console.log("Date picker - Business hours:", settings?.businessHours)
+        // console.log("Date picker - Time slot settings loaded:", settings)
+        // console.log("Date picker - Business hours:", settings?.businessHours)
       } catch (error) {
         console.error("Date picker - Failed to fetch time slot settings:", error)
       }
@@ -93,9 +93,9 @@ export function ReservationDatePicker({ selectedDate, onDateSelected, minBookabl
           throw new Error(result.error || 'Failed to fetch availability')
         }
         
-        console.log("Date picker - Availability response:", result.data)
-        console.log("Date picker - Available dates:", result.data.availableDates)
-        console.log("Date picker - Availability map:", result.data.availabilityMap)
+        // console.log("Date picker - Availability response:", result.data)
+        // console.log("Date picker - Available dates:", result.data.availableDates)
+        // console.log("Date picker - Availability map:", result.data.availabilityMap)
         
         setAvailabilityMap(result.data.availabilityMap || {})
       } catch (error) {
@@ -232,20 +232,18 @@ export function ReservationDatePicker({ selectedDate, onDateSelected, minBookabl
                 const isSelected = selectedDateState ? isSameDay(day, selectedDateState) : false
                 const availability = isCurrentMonth ? checkDateAvailability(day) : "unavailable"
                 const isToday = isSameDay(day, new Date())
-                const isPast = isBefore(day, minBookableDate)
+                const isPast = minBookableDate ? isBefore(day, minBookableDate) : false
                 const isTooFarInFuture = maxBookableDate ? day > maxBookableDate : false
-                const isBookable =
-                  !isPast && !isTooFarInFuture && availability !== "unavailable" && isCurrentMonth
-
+                const isBookable = !isPast && !isTooFarInFuture && availability !== "unavailable" && isCurrentMonth                
                 // Debug log for today's date to verify same-day booking
-                if (isToday) {
-                  console.log(`Date picker - Today ${format(day, "yyyy-MM-dd")}: isPast=${isPast}, availability=${availability}, isBookable=${isBookable}, minBookableDate=${format(minBookableDate, "yyyy-MM-dd HH:mm:ss")}`)
-                }
+                // if (isToday) {
+                //   console.log(`Date picker - Today ${format(day, "yyyy-MM-dd")}: isPast=${isPast}, availability=${availability}, isBookable=${isBookable}, minBookableDate=${minBookableDate ? format(minBookableDate, "yyyy-MM-dd HH:mm:ss") : 'null'}`)
+                // }
 
                 // Debug log for problematic dates (Friday and Saturday)
-                if (isCurrentMonth && (day.getDay() === 5 || day.getDay() === 6)) {
-                  console.log(`Date picker - Day ${format(day, "yyyy-MM-dd")} (${day.getDay() === 5 ? 'Friday' : 'Saturday'}): availability=${availability}, isBookable=${isBookable}`)
-                }
+                // if (isCurrentMonth && (day.getDay() === 5 || day.getDay() === 6)) {
+                //   console.log(`Date picker - Day ${format(day, "yyyy-MM-dd")} (${day.getDay() === 5 ? 'Friday' : 'Saturday'}): availability=${availability}, isBookable=${isBookable}`)
+                // }
 
                 // Determine the tooltip message
                 let tooltipMessage = ""
