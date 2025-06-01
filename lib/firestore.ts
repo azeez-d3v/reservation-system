@@ -906,8 +906,7 @@ export async function getAvailableTimeSlots(
     if (!daySchedule || !daySchedule.enabled) {
       return []
     }
-    
-    // Generate time slots based on day schedule
+      // Generate time slots based on day schedule
     const allTimeSlots: { 
       time: string, 
       available: boolean, 
@@ -919,7 +918,9 @@ export async function getAvailableTimeSlots(
     const interval = timeSlotSettings.timeSlotInterval
     const maxCapacity = systemSettings.maxOverlappingReservations || 1
     
-    daySchedule.timeSlots.forEach(slot => {
+    // Handle single time slot per day
+    if (daySchedule.timeSlot) {
+      const slot = daySchedule.timeSlot
       const startMinutes = timeToMinutes(slot.start)
       const endMinutes = timeToMinutes(slot.end)
       
@@ -937,7 +938,7 @@ export async function getAvailableTimeSlots(
           conflicts: []
         })
       }
-    })
+    }
     
     // Get existing reservations for the date
     const existingReservations = await getReservationsForDate(date)
@@ -1094,50 +1095,37 @@ function getDefaultTimeSlotSettings(): TimeSlotSettings {
     businessHours: {
       monday: {
         enabled: true,
-        timeSlots: [
-          { id: "1", start: "08:00", end: "12:00" },
-          { id: "2", start: "13:00", end: "17:00" },
-        ],
+        timeSlot: { id: "1", start: "08:00", end: "17:00" },
       },
       tuesday: {
         enabled: true,
-        timeSlots: [
-          { id: "3", start: "08:00", end: "12:00" },
-          { id: "4", start: "13:00", end: "17:00" },
-        ],
+        timeSlot: { id: "2", start: "08:00", end: "17:00" },
       },
       wednesday: {
         enabled: true,
-        timeSlots: [
-          { id: "5", start: "08:00", end: "12:00" },
-          { id: "6", start: "13:00", end: "17:00" },
-        ],
+        timeSlot: { id: "3", start: "08:00", end: "17:00" },
       },
       thursday: {
         enabled: true,
-        timeSlots: [
-          { id: "7", start: "08:00", end: "12:00" },
-          { id: "8", start: "13:00", end: "17:00" },
-        ],
+        timeSlot: { id: "4", start: "08:00", end: "17:00" },
       },
       friday: {
         enabled: true,
-        timeSlots: [
-          { id: "9", start: "08:00", end: "12:00" },
-          { id: "10", start: "13:00", end: "17:00" },
-        ],
+        timeSlot: { id: "5", start: "08:00", end: "17:00" },
       },
       saturday: {
         enabled: false,
-        timeSlots: [],
+        timeSlot: null,
       },
       sunday: {
         enabled: false,
-        timeSlots: [],
+        timeSlot: null,
       },
-    },    blackoutDates: [],
+    },
+    blackoutDates: [],
     minDuration: 30,
-    maxDuration: 240,
+    maxDurationOptions: [30, 60, 90, 120, 180, 240],
+    defaultMaxDuration: 120,
     timeSlotInterval: 30,
   }
 }
@@ -1269,7 +1257,7 @@ export async function getAlternativeDates(
       // If we have time slot settings, check if this day is operational
       if (timeSlotSettings?.businessHours) {
         const daySchedule = timeSlotSettings.businessHours[dayName]
-        if (!daySchedule || !daySchedule.enabled || daySchedule.timeSlots.length === 0) {
+        if (!daySchedule || !daySchedule.enabled || !daySchedule.timeSlot) {
           continue // Skip days that are not operational
         }
       } else {
@@ -1396,9 +1384,9 @@ export async function getEnhancedTimeSlotAvailability(
     
     const interval = timeSlotSettings.timeSlotInterval || 30
     const maxCapacity = systemSettings.maxOverlappingReservations || 1
-    
-    // Generate all time slots
-    daySchedule.timeSlots.forEach(slot => {
+      // Generate all time slots
+    if (daySchedule.timeSlot) {
+      const slot = daySchedule.timeSlot
       const startMinutes = timeToMinutes(slot.start)
       const endMinutes = timeToMinutes(slot.end)
       
@@ -1445,8 +1433,7 @@ export async function getEnhancedTimeSlotAvailability(
           reservationAllowed = true
           warningMessage = `${occupancy} of ${maxCapacity} spots taken`
         }
-        
-        allTimeSlots.push({
+          allTimeSlots.push({
           time: timeString,
           available,
           status,
@@ -1457,7 +1444,7 @@ export async function getEnhancedTimeSlotAvailability(
           warningMessage
         })
       }
-    })
+    }
     
     // Calculate summary statistics
     const totalSlots = allTimeSlots.length

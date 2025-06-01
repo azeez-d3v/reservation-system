@@ -53,7 +53,7 @@ export function TimeSlotGrid({
   const [selectedDuration, setSelectedDuration] = useState<number>(timeSlotSettings?.minDuration || 60)
   const [selectedEndTime, setSelectedEndTime] = useState<string | null>(null)
   const [durationOptions, setDurationOptions] = useState<number[]>([])
-  const [maxPossibleDuration, setMaxPossibleDuration] = useState<number>(timeSlotSettings?.maxDuration || 540)
+  const [maxPossibleDuration, setMaxPossibleDuration] = useState<number>(240)
   const [operationalHours, setOperationalHours] = useState(propOperationalHours || { start: "08:00", end: "17:00" })
   const [hasOverlap, setHasOverlap] = useState(false)
   // Sort time slots chronologically
@@ -75,41 +75,66 @@ export function TimeSlotGrid({
     if (selectedTime) {
       setSelectedStartTime(selectedTime)
     }
-  }, [timeSlots, selectedTime])
-
-  // Setup duration options and operational hours based on settings
+  }, [timeSlots, selectedTime])  // Setup duration options and operational hours based on settings
   useEffect(() => {
     if (timeSlotSettings) {
-      // Set duration options based on admin settings
-      const minDuration = timeSlotSettings.minDuration || 30
-      const maxDuration = timeSlotSettings.maxDuration || 540
-      const interval = timeSlotSettings.timeSlotInterval || 30
+      // Calculate dynamic duration options based on business hours
+      const calculateMaxPossibleDuration = () => {
+        if (!timeSlotSettings?.businessHours) return 540 // Default 9 hours
 
-      const options: number[] = []
-      for (let i = minDuration; i <= maxDuration; i += interval) {
-        options.push(i)
+        let maxDuration = 0
+
+        // Check all enabled days and find the longest possible duration
+        const dayNames = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+        
+        for (const dayName of dayNames) {
+          const daySchedule = timeSlotSettings.businessHours[dayName]
+          if (daySchedule?.enabled && daySchedule.timeSlot) {
+            const startTime = parse(daySchedule.timeSlot.start, "HH:mm", new Date())
+            const endTime = parse(daySchedule.timeSlot.end, "HH:mm", new Date())
+            const dayDuration = differenceInMinutes(endTime, startTime)
+            
+            if (dayDuration > maxDuration) {
+              maxDuration = dayDuration
+            }
+          }
+        }
+
+        return maxDuration > 0 ? maxDuration : 540 // Default to 9 hours if no valid days found
       }
-      setDurationOptions(options)
-      setMaxPossibleDuration(maxDuration)
+
+      const maxPossibleDuration = calculateMaxPossibleDuration()
+      const minDuration = timeSlotSettings?.minDuration || 30
+      const interval = 30 // Generate options in 30-minute intervals
+      
+      // Generate dynamic options from minimum duration up to maximum possible duration
+      const dynamicOptions: number[] = []
+      
+      for (let duration = minDuration; duration <= maxPossibleDuration; duration += interval) {
+        dynamicOptions.push(duration)
+      }
+      
+      // Ensure we have at least the minimum duration option
+      if (dynamicOptions.length === 0 && maxPossibleDuration >= minDuration) {
+        dynamicOptions.push(minDuration)
+      }
+      
+      setDurationOptions(dynamicOptions)
+      setMaxPossibleDuration(maxPossibleDuration)
 
       // Set initial duration if not already set
       if (!selectedTime && selectedDuration === (timeSlotSettings?.minDuration || 60)) {
         setSelectedDuration(minDuration)
-      }
-
-      // Set operational hours from business hours if available and selectedDate is provided
+      }// Set operational hours from business hours if available and selectedDate is provided
       if (timeSlotSettings.businessHours && selectedDate) {
         const dayOfWeek = selectedDate.getDay()
         const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
         const daySchedule = timeSlotSettings.businessHours[dayNames[dayOfWeek]]
 
-        if (daySchedule && daySchedule.enabled && daySchedule.timeSlots.length > 0) {
-          const firstSlot = daySchedule.timeSlots[0]
-          const lastSlot = daySchedule.timeSlots[daySchedule.timeSlots.length - 1]
-
+        if (daySchedule && daySchedule.enabled && daySchedule.timeSlot) {
           setOperationalHours({
-            start: firstSlot.start,
-            end: lastSlot.end,
+            start: daySchedule.timeSlot.start,
+            end: daySchedule.timeSlot.end,
           })
         }
       }
@@ -202,20 +227,20 @@ export function TimeSlotGrid({
     } else {
       return `${hours} hour${hours > 1 ? "s" : ""} ${mins} minutes`
     }
-  }
-  // Generate duration options based on maximum possible duration and admin settings
+  }  // Generate duration options based on maximum possible duration and admin settings
   const generateDurationOptions = (maxDuration: number) => {
-    const options: number[] = []
     const minDuration = timeSlotSettings?.minDuration || 30
-    const interval = timeSlotSettings?.timeSlotInterval || 30
-    const adminMaxDuration = timeSlotSettings?.maxDuration || 540
+    const interval = 30 // Generate options in 30-minute intervals
+    const options: number[] = []
 
-    // Use the smaller of the passed maxDuration and admin's maxDuration
-    const effectiveMaxDuration = Math.min(maxDuration, adminMaxDuration)
-
-    // Generate options based on admin settings
-    for (let duration = minDuration; duration <= effectiveMaxDuration; duration += interval) {
+    // Generate dynamic options from minimum duration up to maxDuration
+    for (let duration = minDuration; duration <= maxDuration; duration += interval) {
       options.push(duration)
+    }
+
+    // Ensure we have at least the minimum duration option
+    if (options.length === 0 && maxDuration >= minDuration) {
+      options.push(minDuration)
     }
 
     return options

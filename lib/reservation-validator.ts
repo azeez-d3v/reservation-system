@@ -175,11 +175,10 @@ async function validateDate(
     errors.push("Selected date is not available for reservations")
     return
   }
-  
-  // Add helpful warnings for edge cases
+    // Add helpful warnings for edge cases
   const dayName = dayNames[dayOfWeek]
-  if (daySchedule.timeSlots.length === 0) {
-    warnings.push(`No time slots configured for ${dayName}`)
+  if (!daySchedule.timeSlot) {
+    warnings.push(`No time slot configured for ${dayName}`)
   }
 }
 
@@ -259,16 +258,15 @@ function validateTimeSlots(
     errors.push("Selected day is not available for reservations")
     return
   }
-  
-  // Check if times fall within operational hours
+    // Check if times fall within operational hours
   let isWithinOperationalHours = false
-  for (const slot of daySchedule.timeSlots) {
+  if (daySchedule.timeSlot) {
+    const slot = daySchedule.timeSlot
     const slotStartMinutes = timeToMinutes(slot.start)
     const slotEndMinutes = timeToMinutes(slot.end)
     
     if (startMinutes >= slotStartMinutes && endMinutes <= slotEndMinutes) {
       isWithinOperationalHours = true
-      break
     }
   }
   
@@ -289,15 +287,25 @@ function validateDuration(
   const startMinutes = timeToMinutes(request.startTime)
   const endMinutes = timeToMinutes(request.endTime)
   const durationMinutes = endMinutes - startMinutes
-  
-  // Check minimum duration
+    // Check minimum duration
   if (durationMinutes < timeSlotSettings.minDuration) {
     errors.push(`Minimum reservation duration is ${timeSlotSettings.minDuration} minutes`)
   }
   
-  // Check maximum duration
-  if (durationMinutes > timeSlotSettings.maxDuration) {
-    errors.push(`Maximum reservation duration is ${timeSlotSettings.maxDuration} minutes`)
+  // Check maximum duration using the default max duration from preset options
+  // Fallback to traditional maxDuration if new structure is not available
+  let maxDuration: number
+  
+  if (timeSlotSettings.maxDurationOptions && timeSlotSettings.maxDurationOptions.length > 0) {
+    // New structure with preset duration options
+    maxDuration = timeSlotSettings.defaultMaxDuration || Math.max(...timeSlotSettings.maxDurationOptions)
+  } else {
+    // Fallback to old structure or default values
+    maxDuration = (timeSlotSettings as any).maxDuration || timeSlotSettings.defaultMaxDuration || 480 // 8 hours default
+  }
+  
+  if (durationMinutes > maxDuration) {
+    errors.push(`Maximum reservation duration is ${maxDuration} minutes`)
   }
   
   // Check if duration aligns with time slot intervals
@@ -344,11 +352,11 @@ export async function validateTimeSlotForDate(
     if (!daySchedule || !daySchedule.enabled) {
       return []
     }
+      const timeSlotValidations: TimeSlotValidation[] = []
     
-    const timeSlotValidations: TimeSlotValidation[] = []
-    
-    // Generate all possible time slots
-    for (const operatingSlot of daySchedule.timeSlots) {
+    // Generate all possible time slots for single time slot per day
+    if (daySchedule.timeSlot) {
+      const operatingSlot = daySchedule.timeSlot
       const startMinutes = timeToMinutes(operatingSlot.start)
       const endMinutes = timeToMinutes(operatingSlot.end)
       

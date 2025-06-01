@@ -27,10 +27,9 @@ export function getDateAvailability(
   const dayOfWeek = date.getDay() // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
   const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
   const dayName = dayNames[dayOfWeek]
-  
-  // First check if the day is enabled in business hours
+    // First check if the day is enabled in business hours
   const daySchedule = timeSlotSettings.businessHours[dayName]
-  if (!daySchedule?.enabled || !daySchedule.timeSlots?.length) {
+  if (!daySchedule?.enabled || !daySchedule.timeSlot) {
     console.log(`Day ${dayName} (${dayOfWeek}) is disabled in business hours`)
     return "unavailable"
   }
@@ -40,16 +39,12 @@ export function getDateAvailability(
     const now = new Date()
     const currentTimeMinutes = now.getHours() * 60 + now.getMinutes()
     
-    // Find the latest time slot end time for today
-    let latestEndTime = 0
-    for (const timeSlot of daySchedule.timeSlots) {
-      const endTimeMinutes = timeToMinutes(timeSlot.end)
-      latestEndTime = Math.max(latestEndTime, endTimeMinutes)
-    }
+    // Find the end time for today's single time slot
+    const endTimeMinutes = timeToMinutes(daySchedule.timeSlot.end)
     
-    // If current time has passed the latest available time slot, mark as unavailable
-    if (currentTimeMinutes >= latestEndTime) {
-      // console.log(`Date ${dateString} is unavailable - current time (${now.getHours()}:${now.getMinutes().toString().padStart(2, "0")}) has passed latest time slot end (${Math.floor(latestEndTime / 60)}:${(latestEndTime % 60).toString().padStart(2, "0")})`)
+    // If current time has passed the available time slot, mark as unavailable
+    if (currentTimeMinutes >= endTimeMinutes) {
+      // console.log(`Date ${dateString} is unavailable - current time (${now.getHours()}:${now.getMinutes().toString().padStart(2, "0")}) has passed time slot end (${Math.floor(endTimeMinutes / 60)}:${(endTimeMinutes % 60).toString().padStart(2, "0")})`)
       return "unavailable"
     }
   }

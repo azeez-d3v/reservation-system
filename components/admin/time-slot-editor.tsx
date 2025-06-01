@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-import type { TimeSlotSettings, DaySchedule } from "@/lib/types"
+import type { TimeSlotSettings, DaySchedule, TimeSlot } from "@/lib/types"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent } from "@/components/ui/card"
 import { Plus, Trash2 } from "lucide-react"
@@ -46,34 +46,12 @@ export function TimeSlotEditor({ timeSlotSettings, setTimeSlotSettings }: TimeSl
     })
   }
 
-  const addTimeSlot = (dayId: string) => {
+  const setTimeSlot = (dayId: string, timeSlot: TimeSlot | null) => {
     const daySchedule = timeSlotSettings.businessHours[dayId as keyof typeof timeSlotSettings.businessHours]
-
-    if (!daySchedule.enabled) return
-
-    const newTimeSlots = [
-      ...daySchedule.timeSlots,
-      {
-        id: Date.now().toString(),
-        start: "09:00",
-        end: "17:00",
-      },
-    ]
 
     updateDaySchedule(dayId, {
       ...daySchedule,
-      timeSlots: newTimeSlots,
-    })
-  }
-
-  const removeTimeSlot = (dayId: string, slotId: string) => {
-    const daySchedule = timeSlotSettings.businessHours[dayId as keyof typeof timeSlotSettings.businessHours]
-
-    const newTimeSlots = daySchedule.timeSlots.filter((slot) => slot.id !== slotId)
-
-    updateDaySchedule(dayId, {
-      ...daySchedule,
-      timeSlots: newTimeSlots,
+      timeSlot: timeSlot,
     })
   }
 
@@ -86,10 +64,10 @@ export function TimeSlotEditor({ timeSlotSettings, setTimeSlotSettings }: TimeSl
       if (day.id !== activeDay) {
         newBusinessHours[day.id as keyof typeof newBusinessHours] = {
           ...sourceDay,
-          timeSlots: sourceDay.timeSlots.map((slot) => ({
-            ...slot,
+          timeSlot: sourceDay.timeSlot ? {
+            ...sourceDay.timeSlot,
             id: Date.now().toString() + Math.random().toString(36).substring(2),
-          })),
+          } : null,
         }
       }
     })
@@ -137,99 +115,89 @@ export function TimeSlotEditor({ timeSlotSettings, setTimeSlotSettings }: TimeSl
               {daySchedule.enabled && (
                 <>
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label>Time Slots</Label>
-                      <Button variant="outline" size="sm" onClick={() => addTimeSlot(day.id)}>
-                        <Plus className="mr-2 h-4 w-4" />
-                        Add Time Slot
-                      </Button>
-                    </div>
-
-                    {daySchedule.timeSlots.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">No time slots configured for {day.label}.</p>
-                    ) : (
+                    <Label>Operating Hours</Label>
+                    
+                    {!daySchedule.timeSlot ? (
                       <div className="space-y-2">
-                        {daySchedule.timeSlots.map((slot) => (
-                          <Card key={slot.id}>
-                            <CardContent className="p-4">
-                              <div className="flex items-start gap-3">
-                                <div className="grid flex-1 gap-2 grid-cols-1 sm:grid-cols-2">
-                                  <div>
-                                    <Label htmlFor={`start-${slot.id}`}>Start Time</Label>
-                                    <Select
-                                      value={slot.start}
-                                      onValueChange={(value) => {
-                                        const newTimeSlots = daySchedule.timeSlots.map((s) => {
-                                          if (s.id === slot.id) {
-                                            return { ...s, start: value }
-                                          }
-                                          return s
-                                        })
-
-                                        updateDaySchedule(day.id, {
-                                          ...daySchedule,
-                                          timeSlots: newTimeSlots,
-                                        })
-                                      }}
-                                    >
-                                      <SelectTrigger id={`start-${slot.id}`}>
-                                        <SelectValue placeholder="Select start time" />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {timeOptions.map((time) => (
-                                          <SelectItem key={`start-${time}`} value={time}>
-                                            {time}
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
-                                  <div>
-                                    <Label htmlFor={`end-${slot.id}`}>End Time</Label>
-                                    <Select
-                                      value={slot.end}
-                                      onValueChange={(value) => {
-                                        const newTimeSlots = daySchedule.timeSlots.map((s) => {
-                                          if (s.id === slot.id) {
-                                            return { ...s, end: value }
-                                          }
-                                          return s
-                                        })
-
-                                        updateDaySchedule(day.id, {
-                                          ...daySchedule,
-                                          timeSlots: newTimeSlots,
-                                        })
-                                      }}
-                                    >
-                                      <SelectTrigger id={`end-${slot.id}`}>
-                                        <SelectValue placeholder="Select end time" />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {timeOptions.map((time) => (
-                                          <SelectItem key={`end-${time}`} value={time} disabled={time <= slot.start}>
-                                            {time}
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
-                                </div>
-                                <div className="flex items-center pt-6">
-                                  <Button 
-                                    variant="outline" 
-                                    size="sm" 
-                                    onClick={() => removeTimeSlot(day.id, slot.id)}
-                                    className="text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/20"
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </div>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        ))}
+                        <p className="text-sm text-muted-foreground">No operating hours configured for {day.label}.</p>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => setTimeSlot(day.id, {
+                            id: Date.now().toString(),
+                            start: "08:00",
+                            end: "17:00",
+                          })}
+                        >
+                          <Plus className="mr-2 h-4 w-4" />
+                          Set Operating Hours
+                        </Button>
                       </div>
+                    ) : (
+                      <Card>
+                        <CardContent className="p-4">
+                          <div className="flex items-start gap-3">
+                            <div className="grid flex-1 gap-2 grid-cols-1 sm:grid-cols-2">
+                              <div>
+                                <Label htmlFor={`start-${daySchedule.timeSlot.id}`}>Start Time</Label>
+                                <Select
+                                  value={daySchedule.timeSlot.start}
+                                  onValueChange={(value) => {
+                                    setTimeSlot(day.id, {
+                                      ...daySchedule.timeSlot!,
+                                      start: value
+                                    })
+                                  }}
+                                >
+                                  <SelectTrigger id={`start-${daySchedule.timeSlot.id}`}>
+                                    <SelectValue placeholder="Select start time" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {timeOptions.map((time) => (
+                                      <SelectItem key={`start-${time}`} value={time}>
+                                        {time}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div>
+                                <Label htmlFor={`end-${daySchedule.timeSlot.id}`}>End Time</Label>
+                                <Select
+                                  value={daySchedule.timeSlot.end}
+                                  onValueChange={(value) => {
+                                    setTimeSlot(day.id, {
+                                      ...daySchedule.timeSlot!,
+                                      end: value
+                                    })
+                                  }}
+                                >
+                                  <SelectTrigger id={`end-${daySchedule.timeSlot.id}`}>
+                                    <SelectValue placeholder="Select end time" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {timeOptions.map((time) => (
+                                      <SelectItem key={`end-${time}`} value={time} disabled={time <= daySchedule.timeSlot!.start}>
+                                        {time}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+                            <div className="flex items-center pt-6">
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                onClick={() => setTimeSlot(day.id, null)}
+                                className="text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/20"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
                     )}
                   </div>
                 </>

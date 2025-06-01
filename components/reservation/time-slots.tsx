@@ -126,35 +126,62 @@ export function ReservationTimeSlots({
         setTimeSlots(slotsWithEnhancedData)
         setSystemSettings(settings)
         setTimeSlotSettings(timeSlotSettings)
-        setUse12HourFormat(settings.use12HourFormat !== false) // Default to true if not specified
-
-        // Set operational hours
+        setUse12HourFormat(settings.use12HourFormat !== false) // Default to true if not specified        // Set operational hours
         if (timeSlotSettings?.businessHours) {
           const dayOfWeek = selectedDate.getDay()
           const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
           const daySchedule = timeSlotSettings.businessHours[dayNames[dayOfWeek]]
 
-          if (daySchedule && daySchedule.enabled && daySchedule.timeSlots.length > 0) {
-            const firstSlot = daySchedule.timeSlots[0]
-            const lastSlot = daySchedule.timeSlots[daySchedule.timeSlots.length - 1]
-
+          if (daySchedule && daySchedule.enabled && daySchedule.timeSlot) {
             setOperationalHours({
-              start: firstSlot.start,
-              end: lastSlot.end,
+              start: daySchedule.timeSlot.start,
+              end: daySchedule.timeSlot.end,
             })
           }
-        }
-
-        // Set duration options based on system settings
+        }        // Set duration options based on system settings - use dynamic calculation
         const minDuration = timeSlotSettings?.minDuration || 30
-        const maxDuration = timeSlotSettings?.maxDuration || 240
-        const interval = timeSlotSettings?.timeSlotInterval || 30
 
-        const options: number[] = []
-        for (let i = minDuration; i <= maxDuration; i += interval) {
-          options.push(i)
+        // Calculate dynamic duration options based on business hours
+        const calculateMaxPossibleDuration = () => {
+          if (!timeSlotSettings?.businessHours) return 540 // Default 9 hours
+
+          let maxDuration = 0
+
+          // Check all enabled days and find the longest possible duration
+          const dayNames = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+          
+          for (const dayName of dayNames) {
+            const daySchedule = timeSlotSettings.businessHours[dayName]
+            if (daySchedule?.enabled && daySchedule.timeSlot) {
+              const startTime = parse(daySchedule.timeSlot.start, "HH:mm", new Date())
+              const endTime = parse(daySchedule.timeSlot.end, "HH:mm", new Date())
+              const dayDuration = differenceInMinutes(endTime, startTime)
+              
+              if (dayDuration > maxDuration) {
+                maxDuration = dayDuration
+              }
+            }
+          }
+
+          return maxDuration > 0 ? maxDuration : 540 // Default to 9 hours if no valid days found
         }
-        setDurationOptions(options)
+
+        const maxPossibleDuration = calculateMaxPossibleDuration()
+        const interval = 30 // Generate options in 30-minute intervals
+        
+        // Generate dynamic options from minimum duration up to maximum possible duration
+        const dynamicOptions: number[] = []
+        
+        for (let duration = minDuration; duration <= maxPossibleDuration; duration += interval) {
+          dynamicOptions.push(duration)
+        }
+        
+        // Ensure we have at least the minimum duration option even if maxPossibleDuration is small
+        if (dynamicOptions.length === 0 && maxPossibleDuration >= minDuration) {
+          dynamicOptions.push(minDuration)
+        }
+
+        setDurationOptions(dynamicOptions)
         
         // Set the initial duration - prioritize the passed initial duration
         const initialSelectedDuration = initialDuration || minDuration
@@ -209,15 +236,20 @@ export function ReservationTimeSlots({
 
       // Set the maximum possible duration based on gym closing time only
       const calculatedMaxDuration = minutesUntilClose
-      setMaxPossibleDuration(calculatedMaxDuration)
-
-      // Update duration options based on the new maximum duration
+      setMaxPossibleDuration(calculatedMaxDuration)      // Update duration options based on the new maximum duration - use dynamic calculation
       const systemMinDuration = timeSlotSettings?.minDuration || 30
-      const systemInterval = timeSlotSettings?.timeSlotInterval || 30
       
+      // Generate dynamic duration options for the current time slot
+      const interval = 30 // Generate options in 30-minute intervals
       const newDurationOptions: number[] = []
-      for (let duration = systemMinDuration; duration <= calculatedMaxDuration; duration += systemInterval) {
+      
+      for (let duration = systemMinDuration; duration <= calculatedMaxDuration; duration += interval) {
         newDurationOptions.push(duration)
+      }
+      
+      // Ensure we have at least the minimum duration option
+      if (newDurationOptions.length === 0 && calculatedMaxDuration >= systemMinDuration) {
+        newDurationOptions.push(systemMinDuration)
       }
       
       // Only update duration options if they're actually different

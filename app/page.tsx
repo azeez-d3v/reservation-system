@@ -129,40 +129,37 @@ export default function HomePage() {
     
     return dayNames.map((dayName, index) => {
       const daySchedule = timeSlotSettings.businessHours[dayName]
-      
-      if (!daySchedule?.enabled || !daySchedule.timeSlots?.length) {
+        if (!daySchedule?.enabled || !daySchedule.timeSlot) {
         return {
           day: dayLabels[index],
           hours: "Closed"
         }
       }
 
-      const timeSlots = daySchedule.timeSlots.map((slot: { start: string; end: string }) => 
-        `${formatTimeForDisplay(slot.start)} - ${formatTimeForDisplay(slot.end)}`
-      ).join(", ")
+      const hours = `${formatTimeForDisplay(daySchedule.timeSlot.start)} - ${formatTimeForDisplay(daySchedule.timeSlot.end)}`
 
       return {
         day: dayLabels[index],
-        hours: timeSlots
+        hours: hours
       }
     })
   }, [timeSlotSettings, formatTimeForDisplay])
 
   const generateDurationOptions = useCallback((maxDuration: number) => {
-    const options = []
     const minDuration = timeSlotSettings?.minDuration || 30
-    const interval = timeSlotSettings?.timeSlotInterval || 30
-    const adminMaxDuration = timeSlotSettings?.maxDuration || 540
+    const interval = 30 // Generate options in 30-minute intervals
+    const options = []
 
-    const effectiveMaxDuration = Math.min(maxDuration, adminMaxDuration)
-
-    for (let duration = minDuration; duration <= effectiveMaxDuration; duration += interval) {
+    // Generate dynamic options from minimum duration up to maxDuration
+    for (let duration = minDuration; duration <= maxDuration; duration += interval) {
       options.push(duration)
     }
     
+    // If no options fit, add the minimum duration
     if (options.length === 0) {
-      options.push(minDuration)
+      options.push(Math.min(minDuration, maxDuration))
     }
+    
     return options
   }, [timeSlotSettings])
   // Use shared date availability checker
@@ -219,13 +216,10 @@ export default function HomePage() {
       const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
       const daySchedule = timeSlotSettings.businessHours[dayNames[dayOfWeek]]
 
-      if (daySchedule && daySchedule.enabled && daySchedule.timeSlots.length > 0) {
-        const firstSlot = daySchedule.timeSlots[0]
-        const lastSlot = daySchedule.timeSlots[daySchedule.timeSlots.length - 1]
-
+      if (daySchedule && daySchedule.enabled && daySchedule.timeSlot) {
         setOperationalHours({
-          start: firstSlot.start,
-          end: lastSlot.end,
+          start: daySchedule.timeSlot.start,
+          end: daySchedule.timeSlot.end,
         })
       } else {
         setOperationalHours({ start: "08:00", end: "17:00" })

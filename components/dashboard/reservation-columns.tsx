@@ -212,21 +212,20 @@ export function createColumns({
             >
               Copy reservation ID
             </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem 
+            <DropdownMenuSeparator />            <DropdownMenuItem 
               onClick={() => onViewDetails(reservation)}
               className="cursor-pointer"
             >
               <Eye className="mr-2 h-4 w-4" />
               View details
             </DropdownMenuItem>
-            {reservation.status === "approved" && (
+            {(reservation.status === "approved" || reservation.status === "pending") && (
               <DropdownMenuItem 
                 onClick={handleCancelReservation}
                 className="text-red-600 cursor-pointer"
               >
                 <X className="mr-2 h-4 w-4" />
-                Cancel reservation
+                {reservation.status === "pending" ? "Cancel request" : "Cancel reservation"}
               </DropdownMenuItem>
             )}
           </DropdownMenuContent>

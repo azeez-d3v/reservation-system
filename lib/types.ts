@@ -34,14 +34,15 @@ export interface TimeSlotSettings {
   }
   blackoutDates: BlackoutDate[]
   minDuration: number
-  maxDuration: number
+  maxDurationOptions: number[]
+  defaultMaxDuration: number
   timeSlotInterval: number
   timeSlots?: TimeSlot[]
 }
 
 export interface DaySchedule {
   enabled: boolean
-  timeSlots: TimeSlot[]
+  timeSlot: TimeSlot | null
 }
 
 export interface TimeSlot {

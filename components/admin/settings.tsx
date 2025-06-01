@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
+import { parse, differenceInMinutes } from "date-fns"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -488,6 +489,52 @@ export function AdminSettings() {
       description: `${settingType} settings have been modified. Remember to save your changes.`,
     })
   }
+
+  // Helper function to calculate maximum possible duration from business hours
+  const calculateMaxPossibleDuration = useCallback(() => {
+    if (!timeSlotSettings?.businessHours) return 540 // Default 9 hours
+
+    let maxDuration = 0
+
+    // Check all enabled days and find the longest possible duration
+    const dayNames = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+    
+    for (const dayName of dayNames) {
+      const daySchedule = timeSlotSettings.businessHours[dayName]
+      if (daySchedule?.enabled && daySchedule.timeSlot) {
+        const startTime = parse(daySchedule.timeSlot.start, "HH:mm", new Date())
+        const endTime = parse(daySchedule.timeSlot.end, "HH:mm", new Date())
+        const dayDuration = differenceInMinutes(endTime, startTime)
+        
+        if (dayDuration > maxDuration) {
+          maxDuration = dayDuration
+        }
+      }
+    }
+
+    return maxDuration > 0 ? maxDuration : 540 // Default to 9 hours if no valid days found
+  }, [timeSlotSettings?.businessHours])
+  // Generate dynamic duration options for Default Maximum Duration dropdown
+  const getDynamicDefaultDurationOptions = useCallback(() => {
+    const maxPossibleDuration = calculateMaxPossibleDuration()
+    const minDuration = timeSlotSettings?.minDuration || 30
+    const interval = 30 // Generate options in 30-minute intervals
+    
+    // Generate dynamic options from minimum duration up to maximum possible duration
+    const dynamicOptions: number[] = []
+    
+    for (let duration = minDuration; duration <= maxPossibleDuration; duration += interval) {
+      dynamicOptions.push(duration)
+    }
+    
+    // Ensure we have at least the minimum duration option even if maxPossibleDuration is small
+    if (dynamicOptions.length === 0 && maxPossibleDuration >= minDuration) {
+      dynamicOptions.push(minDuration)
+    }
+    
+    return dynamicOptions
+  }, [timeSlotSettings?.minDuration, calculateMaxPossibleDuration])
+
   if (isLoading) {
     return <div className="flex justify-center py-12">Loading settings...</div>
   }
@@ -839,24 +886,39 @@ export function AdminSettings() {
                       })
                     }
                   />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="maxDuration">Maximum Duration (minutes)</Label>
-                  <Input
-                    id="maxDuration"
-                    type="number"
-                    min="15"
-                    step="15"
-                    value={timeSlotSettings.maxDuration}
-                    onChange={(e) =>
+                </div>                <div className="space-y-2">
+                  <Label htmlFor="defaultMaxDuration">Default Maximum Duration (minutes)</Label>
+                  <Select
+                    value={timeSlotSettings.defaultMaxDuration?.toString() || "120"}
+                    onValueChange={(value) =>
                       setTimeSlotSettings({
                         ...timeSlotSettings,
-                        maxDuration: Number.parseInt(e.target.value),
+                        defaultMaxDuration: Number.parseInt(value),
                       })
                     }
-                  />
+                  >
+                    <SelectTrigger id="defaultMaxDuration">
+                      <SelectValue placeholder="Select default duration" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {getDynamicDefaultDurationOptions().map((duration) => (
+                        <SelectItem key={duration} value={duration.toString()}>
+                          {duration} minutes ({Math.floor(duration / 60)}h {duration % 60 ? `${duration % 60}m` : ''})
+                        </SelectItem>
+                      ))}
+                      {getDynamicDefaultDurationOptions().length === 0 && (
+                        <SelectItem value="30" disabled>
+                          No valid options - check business hours
+                        </SelectItem>
+                      )}
+                    </SelectContent>                  </Select>
+                  <p className="text-xs text-gray-500">
+                    Options are filtered based on your business hours. Maximum possible: {Math.floor(calculateMaxPossibleDuration() / 60)}h {calculateMaxPossibleDuration() % 60 ? `${calculateMaxPossibleDuration() % 60}m` : ''}
+                  </p>
                 </div>
-              </div>              <div className="space-y-2">
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="timeSlotInterval">Time Slot Interval (minutes)</Label>
                 <Select
                   value={timeSlotSettings.timeSlotInterval.toString()}
