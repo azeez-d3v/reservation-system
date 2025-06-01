@@ -13,8 +13,7 @@ export const authOptions: NextAuthOptions = {
   ],
   session: {
     strategy: "jwt" as const,
-  },
-  callbacks: {
+  },  secret: process.env.NEXTAUTH_SECRET,  callbacks: {
     async jwt({ token, user }) {
       // Add role and status to token for middleware to access
       if (user && user.email) {
@@ -50,11 +49,9 @@ export const authOptions: NextAuthOptions = {
         console.log("JWT Callback - Preserving token data:", {
           email: token.email,
           role: token.role,
-          status: token.status
-        })
+          status: token.status        })
       }
-      return token
-    },
+      return token},
     async session({ session, token }) {
       if (session.user && token) {
         session.user.id = token.email as string // Use email as ID to match Firestore document structure
@@ -111,8 +108,7 @@ export const authOptions: NextAuthOptions = {
         } catch (error) {
           console.error("Error handling sign in:", error)
           return false
-        }
-      }
+        }      }
       return true
     },
   },

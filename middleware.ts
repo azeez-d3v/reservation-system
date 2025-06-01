@@ -7,8 +7,10 @@ export default withAuth(
   {
     callbacks: {
       authorized: ({ token, req }) => {
+        const { pathname } = req.nextUrl
+
         // Debug logging
-        console.log("Middleware - Path:", req.nextUrl.pathname)
+        console.log("Middleware - Path:", pathname)
         console.log("Middleware - Token:", {
           email: token?.email,
           role: token?.role,
@@ -16,9 +18,14 @@ export default withAuth(
           hasToken: !!token
         })
 
+        // Allow auth routes to pass through
+        if (pathname.startsWith("/api/auth")) {
+          return true
+        }
+
         // Check if user is authenticated
         if (!token) {
-          console.log("Middleware - No token, denying access")
+          console.log("Middleware - No token, denying access to:", pathname)
           return false
         }
 
@@ -26,18 +33,22 @@ export default withAuth(
         if (token.status === "inactive") {
           console.log("Middleware - User inactive, denying access")
           return false
-        }        // Admin routes require admin or staff role
-        if (req.nextUrl.pathname.startsWith("/admin")) {
+        }
+
+        // Admin routes require admin or staff role
+        if (pathname.startsWith("/admin")) {
           const isAdminOrStaff = token.role === "admin" || token.role === "staff"
+          console.log("Middleware - Admin route check:", { role: token.role, isAdminOrStaff })
           return isAdminOrStaff
         }
 
         // Protected routes require authentication
         if (
-          req.nextUrl.pathname.startsWith("/dashboard") ||
-          req.nextUrl.pathname.startsWith("/request")
+          pathname.startsWith("/dashboard") ||
+          pathname.startsWith("/request")
         ) {
-          return !!token
+          console.log("Middleware - Protected route, allowing access")
+          return true
         }
 
         return true

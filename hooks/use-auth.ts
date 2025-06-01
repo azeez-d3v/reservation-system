@@ -11,13 +11,16 @@ export function useAuth() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const { toast } = useToast()
-
   const isLoading = status === "loading"
   const isAuthenticated = !!session
   const user = session?.user
-  const login = async () => {
+
+  const login = async (callbackUrl?: string) => {
     try {
-      await signIn("google", { callbackUrl: "/dashboard" })
+      await signIn("google", { 
+        callbackUrl: callbackUrl || "/dashboard",
+        redirect: true 
+      })
     } catch (error) {
       toast({
         title: "Login failed",
@@ -34,12 +37,12 @@ export function useAuth() {
         title: "Logged out",
         description: "You have been logged out successfully.",
       })
-    } catch (error) {
-      toast({
+    } catch (error) {      toast({
         title: "Logout failed",
         description: "There was an error signing you out.",
         variant: "destructive",
-      })    }
+      })
+    }
   }
 
   const getAllUsers = useCallback(async (): Promise<User[]> => {
@@ -50,10 +53,10 @@ export function useAuth() {
       toast({
         title: "Error",
         description: "Failed to fetch users.",
-        variant: "destructive",
-      })
+        variant: "destructive",      })
       return []
-    }  }, [toast])
+    }
+  }, [toast])
 
   const updateUserStatus = useCallback(async (userId: string, status: "active" | "inactive") => {
     try {

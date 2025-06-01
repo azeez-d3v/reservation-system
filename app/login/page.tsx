@@ -17,6 +17,7 @@ export default function LoginPage() {
   const { login, isLoading } = useAuth()
 
   // Get redirect and reservation parameters
+  const callbackUrl = searchParams.get("callbackUrl")
   const redirect = searchParams.get("redirect") || "/dashboard"
   const date = searchParams.get("date")
   const time = searchParams.get("time")
@@ -24,6 +25,15 @@ export default function LoginPage() {
 
   // Build the full redirect URL with all parameters
   const getRedirectUrl = () => {
+    // If we have a callbackUrl from NextAuth, decode and use it
+    if (callbackUrl) {
+      try {
+        return decodeURIComponent(callbackUrl)
+      } catch (e) {
+        console.error("Error decoding callbackUrl:", e)
+      }
+    }
+
     let redirectUrl = redirect
 
     // If we have date and time parameters, add them to the redirect URL
@@ -36,8 +46,10 @@ export default function LoginPage() {
 
   // Redirect if already authenticated
   useEffect(() => {
-    if (session) {
-      router.push(getRedirectUrl())
+    if (session?.user) {
+      console.log("User already authenticated, redirecting to:", getRedirectUrl())
+      const redirectUrl = getRedirectUrl()
+      router.replace(redirectUrl) // Use replace instead of push to avoid back button issues
     }
   }, [session, router])
 
@@ -50,7 +62,10 @@ export default function LoginPage() {
 
   const handleGoogleLogin = async () => {
     try {
-      await login()
+      // Use the callbackUrl from NextAuth if available, otherwise use our constructed redirect URL
+      const finalCallbackUrl = callbackUrl ? decodeURIComponent(callbackUrl) : getRedirectUrl()
+      console.log("Login attempt with callbackUrl:", finalCallbackUrl)
+      await login(finalCallbackUrl)
     } catch (error) {
       console.error("Login error:", error)
     }
