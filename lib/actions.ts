@@ -76,10 +76,8 @@ export async function getNotificationSettings() {
       systemSettings = await getSettings()
     } catch (systemError) {
       console.error("Failed to get system settings, using defaults:", systemError)
-      
-      systemSettings = {
+        systemSettings = {
         systemName: "Reservation System",
-        organizationName: "Your Organization",
         contactEmail: "admin@example.com", // Use consistent fallback value
         requireApproval: true,
         allowOverlapping: true,
@@ -510,7 +508,7 @@ export async function getSettings(): Promise<SystemSettings> {
     }  } catch (error) {
     console.error("Error fetching system settings:", error)    // Return default settings if fetch fails
     return {
-      systemName: "Reservation System",      organizationName: "Your Organization", 
+            systemName: "Reservation System",
       contactEmail: "admin@example.com",
       requireApproval: true,
       allowOverlapping: true,

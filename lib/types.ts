@@ -59,7 +59,6 @@ export interface BlackoutDate {
 
 export interface SystemSettings {
   systemName: string
-  organizationName: string
   contactEmail: string
   requireApproval: boolean
   allowOverlapping: boolean

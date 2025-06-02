@@ -19,7 +19,8 @@ import type { SystemSettings } from "@/lib/types"
 // Define the tabs in the reservation process
 type ReservationTab = "date-selection" | "time-selection" | "reservation-details"
 
-export default function RequestPage() {  const router = useRouter()
+export default function RequestPage() {
+  const router = useRouter()
   const searchParams = useSearchParams()
   const { user, isLoading: authLoading } = useAuth()
 
@@ -53,10 +54,10 @@ export default function RequestPage() {  const router = useRouter()
         const settings = await getSettings()
         setSystemSettings(settings)
       } catch (error) {
-        console.error("Failed to fetch system settings:", error)        // Use default settings if fetch fails
+        console.error("Failed to fetch system settings:", error)
+        // Use default settings if fetch fails
         setSystemSettings({
           systemName: "Reservation System",
-          organizationName: "Your Organization",
           contactEmail: "admin@example.com",
           requireApproval: true,
           allowOverlapping: true,

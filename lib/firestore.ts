@@ -1088,9 +1088,9 @@ function timeToMinutes(time: string): number {
 }
 
 // Default settings functions
-export function getDefaultSystemSettings(): SystemSettings {  return {
+export function getDefaultSystemSettings(): SystemSettings {
+  return {
     systemName: "Reservation System",
-    organizationName: "Your Organization",
     contactEmail: "admin@example.com",
     requireApproval: true,
     allowOverlapping: true,

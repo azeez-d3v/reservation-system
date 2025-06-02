@@ -628,18 +628,11 @@ export function AdminSettings() {
                 <Input
                   id="systemName"
                   value={systemSettings.systemName}
-                  onChange={(e) => setSystemSettings({ ...systemSettings, systemName: e.target.value })}
+                                  onChange={(e) => setSystemSettings({ ...systemSettings, systemName: e.target.value })}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="organizationName">Organization Name</Label>
-                <Input
-                  id="organizationName"
-                  value={systemSettings.organizationName}
-                  onChange={(e) => setSystemSettings({ ...systemSettings, organizationName: e.target.value })}
-                />
-              </div>              <div className="space-y-2">
                 <Label htmlFor="contactEmail">Contact Email</Label>
                 <div className="relative">
                   <Input

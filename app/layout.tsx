@@ -5,12 +5,24 @@ import "./globals.css"
 import { Toaster } from "@/components/ui/toaster"
 import { SessionProvider } from "@/components/auth/session-provider"
 import { ConditionalLayout } from "@/components/layout/conditional-layout"
+import { getSettings } from "@/lib/actions"
 
 const inter = Inter({ subsets: ["latin"] })
 
-export const metadata: Metadata = {
-  title: "Reservation System",
-  description: "A user-friendly reservation system with approval workflow",
+export async function generateMetadata(): Promise<Metadata> {
+  try {
+    const settings = await getSettings()
+    return {
+      title: settings.systemName,
+      description: `A user-friendly ${settings.systemName.toLowerCase()} with approval workflow`,
+    }
+  } catch (error) {
+    // Fallback metadata if settings can't be loaded
+    return {
+      title: "Reservation System",
+      description: "A user-friendly reservation system with approval workflow",
+    }
+  }
 }
 
 export default function RootLayout({

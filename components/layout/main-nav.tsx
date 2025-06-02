@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { cn } from "@/lib/utils"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { useSystemSettings } from "@/hooks/use-system-settings"
 import { 
 	Menu, 
 	Home, 
@@ -19,14 +20,15 @@ import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { Separator } from "@/components/ui/separator"
-import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 export function MainNav() {
 	const pathname = usePathname()
 	const { data: session } = useSession()
 	const isMobile = useIsMobile()
+	const { systemSettings } = useSystemSettings()
 	const [isMenuOpen, setIsMenuOpen] = useState(false)
+
+	const displayName = systemSettings?.systemName || "Reservation System"
 
 	// Mobile menu
 	const MobileMenu = () => (
@@ -44,7 +46,7 @@ export function MainNav() {
 							<div className="w-8 h-8 rounded-lg flex items-center justify-center p-1">
 								<Image
 									src="/logo.svg"
-									alt="Reservation System Logo"
+									alt={`${displayName} Logo`}
 									width={52}
 									height={52}
 									className="w-6 h-6"
@@ -144,7 +146,7 @@ export function MainNav() {
 					{/* Footer */}
 					<div className="p-6 pt-0">
 						<div className="text-xs text-muted-foreground text-center">
-							© 2025 Reservation System
+							© 2025 {displayName}
 						</div>
 					</div>
 				</div>
@@ -159,13 +161,13 @@ export function MainNav() {
 				<div className="w-8 h-8 rounded-lg flex items-center justify-center">
 					<Image
 						src="/logo.svg"
-						alt="Reservation System Logo"
+						alt={`${displayName} Logo`}
 						width={32}
 						height={32}
 						className="w-8 h-8"
 					/>
 				</div>
-				<span className="font-bold text-lg">Reservation System</span>
+				<span className="font-bold text-lg">{displayName}</span>
 			</Link>
 			{/* <nav className="flex items-center ml-8 space-x-6 text-sm font-medium">
 				{session?.user ? (
