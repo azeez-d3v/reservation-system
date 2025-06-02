@@ -26,7 +26,6 @@ export function useSystemSettings() {
           requireApproval: true,
           allowOverlapping: true,
           maxOverlappingReservations: 2,
-          publicCalendar: true,
           reservationTypes: ["event", "training", "gym", "other"],
           use12HourFormat: true,
           minAdvanceBookingDays: 0

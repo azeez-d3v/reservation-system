@@ -63,7 +63,6 @@ export interface SystemSettings {
   requireApproval: boolean
   allowOverlapping: boolean
   maxOverlappingReservations: number
-  publicCalendar: boolean
   reservationTypes: string[]
   use12HourFormat: boolean
   minAdvanceBookingDays?: number

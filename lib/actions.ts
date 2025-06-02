@@ -76,13 +76,12 @@ export async function getNotificationSettings() {
       systemSettings = await getSettings()
     } catch (systemError) {
       console.error("Failed to get system settings, using defaults:", systemError)
-        systemSettings = {
+      systemSettings = {
         systemName: "Reservation System",
         contactEmail: "admin@example.com", // Use consistent fallback value
         requireApproval: true,
         allowOverlapping: true,
         maxOverlappingReservations: 2,
-        publicCalendar: true,
         reservationTypes: ["event", "training", "gym", "other"],
         use12HourFormat: true,
         minAdvanceBookingDays: 0
@@ -187,8 +186,7 @@ export async function submitReservation(request: ReservationRequest) {
       console.log("Reservation warnings:", validationResult.warnings)
     }
       const reservationId = await createReservation(request)
-    console.log("Reservation created with ID:", reservationId)
-      // Send email notifications
+    console.log("Reservation created with ID:", reservationId)    // Send email notifications
     try {
       const { emailSettings, systemSettings } = await getNotificationSettings()
       const reservationDetails = await getReservationById(reservationId)
@@ -198,24 +196,37 @@ export async function submitReservation(request: ReservationRequest) {
         adminEmailsEnabled: emailSettings.sendAdminEmails,
         contactEmail: systemSettings.contactEmail,
         hasContactEmail: !!systemSettings.contactEmail,
-        canSendAdminEmail: emailSettings.sendAdminEmails && !!systemSettings.contactEmail
+        canSendAdminEmail: emailSettings.sendAdminEmails && !!systemSettings.contactEmail,
+        requireApproval: systemSettings.requireApproval,
+        reservationStatus: reservationDetails?.status
       })
         if (reservationDetails) {
         // Prepare email tasks for parallel processing
         const emailTasks: Promise<void>[] = []
         
-        // Add user confirmation email task (if enabled)
+        // Send appropriate user email based on reservation status
         if (emailSettings.sendUserEmails) {
-          emailTasks.push(
-            sendReservationSubmissionEmail(reservationDetails, emailSettings)
-              .then(() => console.log("User confirmation email sent successfully"))
-              .catch(error => console.error("Failed to send user confirmation email:", error))
-          )
+          if (reservationDetails.status === "approved") {
+            // Send approval email for auto-approved reservations
+            emailTasks.push(
+              sendApprovalEmail(reservationDetails, emailSettings)
+                .then(() => console.log("User approval email sent successfully (auto-approved)"))
+                .catch(error => console.error("Failed to send user approval email:", error))
+            )
+          } else {
+            // Send submission confirmation email for pending reservations
+            emailTasks.push(
+              sendReservationSubmissionEmail(reservationDetails, emailSettings)
+                .then(() => console.log("User confirmation email sent successfully"))
+                .catch(error => console.error("Failed to send user confirmation email:", error))
+            )
+          }
         } else {
-          console.log("User emails are disabled, skipping confirmation email")
+          console.log("User emails are disabled, skipping notification email")
         }
         
-        // Add admin notification email task (if enabled)
+        // Add admin notification email task for new reservations (if enabled)
+        // Note: Admin notifications are sent for all new reservations, regardless of auto-approval
         if (emailSettings.sendAdminEmails && systemSettings.contactEmail) {
           console.log("Attempting to send admin notification email...")
           emailTasks.push(
@@ -245,15 +256,20 @@ export async function submitReservation(request: ReservationRequest) {
       console.error("Failed to send email notifications:", emailError)
       // Don't fail the reservation creation if email fails
     }
-    
-    revalidatePath("/")
+      revalidatePath("/")
     revalidatePath("/admin")
     revalidatePath("/dashboard")
+    
+    // Get the final reservation details to determine the appropriate message
+    const finalReservationDetails = await getReservationById(reservationId)
+    const isAutoApproved = finalReservationDetails?.status === "approved"
+    
     return { 
       success: true, 
-      message: "Reservation submitted successfully", 
+      message: isAutoApproved ? "Reservation approved automatically" : "Reservation submitted successfully", 
       reservationId,
-      warnings: validationResult.warnings
+      warnings: validationResult.warnings,
+      status: finalReservationDetails?.status || "pending"
     }
   } catch (error) {
     console.error("Error submitting reservation:", error)
@@ -513,7 +529,6 @@ export async function getSettings(): Promise<SystemSettings> {
       requireApproval: true,
       allowOverlapping: true,
       maxOverlappingReservations: 2,
-      publicCalendar: true,
       reservationTypes: ["event", "training", "gym", "other"],
       use12HourFormat: true,
       minAdvanceBookingDays: 0

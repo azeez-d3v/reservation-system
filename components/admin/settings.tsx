@@ -714,18 +714,7 @@ export function AdminSettings() {
                   id="use12HourFormat"
                   checked={systemSettings.use12HourFormat !== false} // Default to true if not specified
                   onCheckedChange={(checked) => setSystemSettings({ ...systemSettings, use12HourFormat: checked })}
-                />
-              </div>              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label htmlFor="publicCalendar">Public Calendar</Label>
-                  <p className="text-sm text-muted-foreground">Make the calendar visible to everyone without login</p>
-                </div>
-                <Switch
-                  id="publicCalendar"
-                  checked={systemSettings.publicCalendar}
-                  onCheckedChange={(checked) => setSystemSettings({ ...systemSettings, publicCalendar: checked })}
-                />
-              </div>              
+                />              </div>              
               <div className="space-y-2">
                 <Label htmlFor="maxConcurrentReservations">Maximum Concurrent Reservations</Label>
                 <Input

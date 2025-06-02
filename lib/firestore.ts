@@ -45,6 +45,10 @@ export async function createReservation(data: ReservationRequest): Promise<strin
       throw new Error(`Reservation validation failed: ${validationResult.errors.join(', ')}`)
     }
 
+    // Get system settings to determine if approval is required
+    const systemSettings = await getSystemSettings()
+    const requiresApproval = systemSettings.requireApproval
+
     // Use Firestore transaction for atomic operation
     const reservationId = doc(collection(db, RESERVATIONS_COLLECTION)).id
     
@@ -54,11 +58,13 @@ export async function createReservation(data: ReservationRequest): Promise<strin
       if (!realtimeValidation.isValid) {
         throw new Error(`Reservation no longer available: ${realtimeValidation.errors.join(', ')}`)
       }
+        // Set initial status based on requireApproval setting
+      const initialStatus = requiresApproval ? "pending" : "approved"
       
       const reservationData = {
         ...data,
         id: reservationId,
-        status: "pending" as const,
+        status: initialStatus,
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
         validationMetadata: {
@@ -72,6 +78,7 @@ export async function createReservation(data: ReservationRequest): Promise<strin
       const reservationRef = doc(db, RESERVATIONS_COLLECTION, reservationId)
       transaction.set(reservationRef, reservationData)
       
+      console.log(`Reservation created with status: ${initialStatus} (requireApproval: ${requiresApproval})`)
       return reservationId
     })
     
@@ -1095,7 +1102,6 @@ export function getDefaultSystemSettings(): SystemSettings {
     requireApproval: true,
     allowOverlapping: true,
     maxOverlappingReservations: 2,
-    publicCalendar: true,
     reservationTypes: ["event", "training", "gym", "other"],
     use12HourFormat: true,
     minAdvanceBookingDays: 0
