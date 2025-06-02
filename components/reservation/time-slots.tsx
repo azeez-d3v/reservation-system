@@ -990,10 +990,14 @@ export function ReservationTimeSlots({
                         Change Time
                       </Button>
                     </div>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
+                  </CardHeader>                  <CardContent className="space-y-6">
                     {/* Selected Time Display */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className={cn(
+                      "grid gap-4",
+                      selectedSlot && systemSettings?.allowOverlapping
+                        ? "grid-cols-1 sm:grid-cols-2"
+                        : "grid-cols-1"
+                    )}>
                       <div className="flex items-center justify-between p-4 bg-white rounded-xl border border-blue-200 shadow-sm">
                         <div className="flex items-center gap-3">
                           <div className="p-2 bg-blue-100 rounded-full">
@@ -1007,10 +1011,9 @@ export function ReservationTimeSlots({
                         <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-300 px-3 py-1 text-sm font-semibold">
                           {formatTimeForDisplay(selectedStartTime)}
                         </Badge>
-                      </div>
-
-                      {/* Availability Info */}
-                      {selectedSlot && (
+                      </div>                      
+                      {/* Availability Info - Only show when overlapping is enabled */}
+                      {selectedSlot && systemSettings?.allowOverlapping && (
                         <div className="flex items-center justify-between p-4 bg-white rounded-xl border border-blue-200 shadow-sm">
                           <div className="flex items-center gap-3">
                             <div className="p-2 bg-blue-100 rounded-full">
