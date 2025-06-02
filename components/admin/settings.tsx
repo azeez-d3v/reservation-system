@@ -547,12 +547,11 @@ export function AdminSettings() {
     }
 
     return maxDuration > 0 ? maxDuration : 540 // Default to 9 hours if no valid days found
-  }, [timeSlotSettings?.businessHours])
-  // Generate dynamic duration options for Default Maximum Duration dropdown
+  }, [timeSlotSettings?.businessHours])  // Generate dynamic duration options for Default Maximum Duration dropdown
   const getDynamicDefaultDurationOptions = useCallback(() => {
     const maxPossibleDuration = calculateMaxPossibleDuration()
     const minDuration = timeSlotSettings?.minDuration || 30
-    const interval = 30 // Generate options in 30-minute intervals
+    const interval = timeSlotSettings?.timeSlotInterval || 30 // Use configurable interval
     
     // Generate dynamic options from minimum duration up to maximum possible duration
     const dynamicOptions: number[] = []
@@ -565,9 +564,8 @@ export function AdminSettings() {
     if (dynamicOptions.length === 0 && maxPossibleDuration >= minDuration) {
       dynamicOptions.push(minDuration)
     }
-    
-    return dynamicOptions
-  }, [timeSlotSettings?.minDuration, calculateMaxPossibleDuration])
+      return dynamicOptions
+  }, [timeSlotSettings?.minDuration, timeSlotSettings?.timeSlotInterval, calculateMaxPossibleDuration])
 
   if (isLoading) {
     return <div className="flex justify-center py-12">Loading settings...</div>
@@ -982,9 +980,7 @@ export function AdminSettings() {
                     Options are filtered based on your business hours. Maximum possible: {Math.floor(calculateMaxPossibleDuration() / 60)}h {calculateMaxPossibleDuration() % 60 ? `${calculateMaxPossibleDuration() % 60}m` : ''}
                   </p>
                 </div>
-              </div>
-
-              <div className="space-y-2">
+              </div>              <div className="space-y-2">
                 <Label htmlFor="timeSlotInterval">Time Slot Interval (minutes)</Label>
                 <Select
                   value={timeSlotSettings.timeSlotInterval.toString()}
@@ -997,13 +993,19 @@ export function AdminSettings() {
                 >
                   <SelectTrigger id="timeSlotInterval">
                     <SelectValue placeholder="Select interval" />
-                  </SelectTrigger>
+                  </SelectTrigger>                  
                   <SelectContent>
+                    <SelectItem value="5">5 minutes</SelectItem>
+                    <SelectItem value="10">10 minutes</SelectItem>
                     <SelectItem value="15">15 minutes</SelectItem>
+                    <SelectItem value="20">20 minutes</SelectItem>
                     <SelectItem value="30">30 minutes</SelectItem>
                     <SelectItem value="60">1 hour</SelectItem>
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-gray-500">
+                  Controls the granularity of available time slots. Users can book slots at {timeSlotSettings.timeSlotInterval}-minute intervals. Minimum 5 minutes for optimal performance.
+                </p>
               </div>
             </CardContent>
             <CardFooter>

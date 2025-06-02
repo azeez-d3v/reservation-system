@@ -104,10 +104,10 @@ export function TimeSlotGrid({
 
         return maxDuration > 0 ? maxDuration : 540 // Default to 9 hours if no valid days found
       }
-
+      
       const maxPossibleDuration = calculateMaxPossibleDuration()
       const minDuration = timeSlotSettings?.minDuration || 30
-      const interval = 30 // Generate options in 30-minute intervals
+      const interval = timeSlotSettings?.timeSlotInterval || 30 // Use configurable interval
       
       // Generate dynamic options from minimum duration up to maximum possible duration
       const dynamicOptions: number[] = []
@@ -168,11 +168,10 @@ export function TimeSlotGrid({
 
       // Set the maximum possible duration (until gym closes at 5PM)
       const calculatedMaxDuration = minutesUntilClose > 0 ? minutesUntilClose : 0
-      setMaxPossibleDuration(calculatedMaxDuration)
-
-      // Adjust selected duration if it exceeds the maximum
+      setMaxPossibleDuration(calculatedMaxDuration)      // Adjust selected duration if it exceeds the maximum
       if (selectedDuration > calculatedMaxDuration) {
-        setSelectedDuration(Math.floor(calculatedMaxDuration / 30) * 30) // Round down to nearest 30 min
+        const interval = timeSlotSettings?.timeSlotInterval || 30
+        setSelectedDuration(Math.floor(calculatedMaxDuration / interval) * interval) // Round down to nearest interval
       }
 
       // Calculate end time based on selected duration
@@ -232,7 +231,7 @@ export function TimeSlotGrid({
   }  // Generate duration options based on maximum possible duration and admin settings
   const generateDurationOptions = (maxDuration: number) => {
     const minDuration = timeSlotSettings?.minDuration || 30
-    const interval = 30 // Generate options in 30-minute intervals
+    const interval = timeSlotSettings?.timeSlotInterval || 30 // Use configurable interval
     const options: number[] = []
 
     // Generate dynamic options from minimum duration up to maxDuration

@@ -145,10 +145,9 @@ export default function HomePage() {
       }
     })
   }, [timeSlotSettings, formatTimeForDisplay])
-
   const generateDurationOptions = useCallback((maxDuration: number) => {
     const minDuration = timeSlotSettings?.minDuration || 30
-    const interval = 30 // Generate options in 30-minute intervals
+    const interval = timeSlotSettings?.timeSlotInterval || 30 // Use configurable interval
     const options = []
 
     // Generate dynamic options from minimum duration up to maxDuration

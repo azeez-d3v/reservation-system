@@ -30,9 +30,10 @@ export function TimeSlotEditor({ timeSlotSettings, setTimeSlotSettings }: TimeSl
     { id: "sunday", label: "Sunday" },
   ]
 
-  const timeOptions = Array.from({ length: 24 * 4 }).map((_, i) => {
-    const hour = Math.floor(i / 4)
-    const minute = (i % 4) * 15
+  const timeOptions = Array.from({ length: Math.ceil(24 * 60 / timeSlotSettings.timeSlotInterval) }).map((_, i) => {
+    const totalMinutes = i * timeSlotSettings.timeSlotInterval
+    const hour = Math.floor(totalMinutes / 60)
+    const minute = totalMinutes % 60
     return `${hour.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}`
   })
 

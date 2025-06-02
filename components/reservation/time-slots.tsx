@@ -167,7 +167,7 @@ export function ReservationTimeSlots({
         }
 
         const maxPossibleDuration = calculateMaxPossibleDuration()
-        const interval = 30 // Generate options in 30-minute intervals
+        const interval = timeSlotSettings?.timeSlotInterval || 30 // Use configurable interval
         
         // Generate dynamic options from minimum duration up to maximum possible duration
         const dynamicOptions: number[] = []
@@ -237,15 +237,13 @@ export function ReservationTimeSlots({
       // Set the maximum possible duration based on gym closing time only
       const calculatedMaxDuration = minutesUntilClose
       setMaxPossibleDuration(calculatedMaxDuration)      // Update duration options based on the new maximum duration - use dynamic calculation
-      const systemMinDuration = timeSlotSettings?.minDuration || 30
-      
-      // Generate dynamic duration options for the current time slot
-      const interval = 30 // Generate options in 30-minute intervals
-      const newDurationOptions: number[] = []
-      
-      for (let duration = systemMinDuration; duration <= calculatedMaxDuration; duration += interval) {
-        newDurationOptions.push(duration)
-      }
+      const systemMinDuration = timeSlotSettings?.minDuration || 30        // Generate dynamic duration options for the current time slot
+        const interval = timeSlotSettings?.timeSlotInterval || 30 // Use configurable interval
+        const newDurationOptions: number[] = []
+        
+        for (let duration = systemMinDuration; duration <= calculatedMaxDuration; duration += interval) {
+          newDurationOptions.push(duration)
+        }
       
       // Ensure we have at least the minimum duration option
       if (newDurationOptions.length === 0 && calculatedMaxDuration >= systemMinDuration) {
@@ -259,11 +257,10 @@ export function ReservationTimeSlots({
           return newDurationOptions
         }
         return prev
-      })
-
-      // Adjust selected duration if it exceeds the maximum
+      })      // Adjust selected duration if it exceeds the maximum
       if (selectedDuration > calculatedMaxDuration) {
-        setSelectedDuration(Math.floor(calculatedMaxDuration / 30) * 30) // Round down to nearest 30 min
+        const interval = timeSlotSettings?.timeSlotInterval || 30
+        setSelectedDuration(Math.floor(calculatedMaxDuration / interval) * interval) // Round down to nearest interval
       }
 
       // Calculate end time based on selected duration
