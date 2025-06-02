@@ -210,8 +210,8 @@ export default function HomePage() {
           setUse12HourFormat(settings.use12HourFormat !== false)
           
           // Debug log the time slot settings
-          console.log("Time slot settings loaded:", timeSlotSettings)
-          console.log("Business hours:", timeSlotSettings?.businessHours)
+          // console.log("Time slot settings loaded:", timeSlotSettings)
+          // console.log("Business hours:", timeSlotSettings?.businessHours)
         }
       } catch (error) {
         if (isMounted) {
@@ -294,9 +294,9 @@ export default function HomePage() {
           throw new Error(result.error || 'Failed to fetch availability')
         }
 
-        console.log("Availability response:", result.data)
-        console.log("Available dates:", result.data.availableDates)
-        console.log("Availability map:", result.data.availabilityMap)
+        // console.log("Availability response:", result.data)
+        // console.log("Available dates:", result.data.availableDates)
+        // console.log("Availability map:", result.data.availabilityMap)
 
         setAvailableDates(result.data.availableDates || [])
         setAvailabilityMap(result.data.availabilityMap || {})

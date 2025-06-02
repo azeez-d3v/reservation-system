@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/toaster"
 import { SessionProvider } from "@/components/auth/session-provider"
 import { ConditionalLayout } from "@/components/layout/conditional-layout"
 import { getSettings } from "@/lib/actions"
+import { Analytics } from '@vercel/analytics/next';
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -39,6 +40,7 @@ export default function RootLayout({
           </ConditionalLayout>
           <Toaster />
         </SessionProvider>
+        <Analytics />
       </body>
     </html>
   )

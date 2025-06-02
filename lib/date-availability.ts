@@ -30,7 +30,7 @@ export function getDateAvailability(
     // First check if the day is enabled in business hours
   const daySchedule = timeSlotSettings.businessHours[dayName]
   if (!daySchedule?.enabled || !daySchedule.timeSlot) {
-    console.log(`Day ${dayName} (${dayOfWeek}) is disabled in business hours`)
+    // console.log(`Day ${dayName} (${dayOfWeek}) is disabled in business hours`)
     return "unavailable"
   }
   
