@@ -139,8 +139,7 @@ async function validateDate(
     if (selectedDate < today) {
       errors.push("Reservation date cannot be in the past")
       return
-    }
-  } else {
+    }  } else {
     // Check if date is in the past (precise comparison for advance booking)
     if (date < now) {
       errors.push("Reservation date cannot be in the past")
@@ -148,9 +147,15 @@ async function validateDate(
     }
     
     // Check minimum advance booking requirement
-    const minBookableDate = new Date(now.getTime() + minAdvanceBookingDays * 24 * 60 * 60 * 1000)
+    // Calculate the minimum bookable date at start of day
+    const minBookableDate = new Date()
+    minBookableDate.setDate(minBookableDate.getDate() + minAdvanceBookingDays)
+    minBookableDate.setHours(0, 0, 0, 0)
     
-    if (date < minBookableDate) {
+    const selectedDate = new Date(date)
+    selectedDate.setHours(0, 0, 0, 0)
+    
+    if (selectedDate < minBookableDate) {
       const dayText = minAdvanceBookingDays === 1 ? "day" : "days"
       errors.push(`Reservations must be made at least ${minAdvanceBookingDays} ${dayText} in advance`)
       return

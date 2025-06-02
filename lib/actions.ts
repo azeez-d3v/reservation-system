@@ -955,6 +955,9 @@ export async function getPublicAvailability(startDate: Date, endDate: Date, incl
       const fullSlots = slots.filter(slot => slot.status === "full" || slot.status === "unavailable")
       const totalSlots = slots.length
       
+      // DEBUG: Log slot details for debugging
+      // console.log(`[DEBUG] Date: ${dateKey}, Total: ${totalSlots}, Available: ${availableSlots.length}, Limited: ${limitedSlots.length}, Full: ${fullSlots.length}`)
+      
       // Determine date availability based on slot statuses
       if (availableSlots.length === totalSlots) {
         // All slots are available

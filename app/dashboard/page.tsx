@@ -4,15 +4,19 @@ import { useEffect, useState, useCallback } from "react"
 import { useAuth } from "@/hooks/use-auth"
 import { redirect } from "next/navigation"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { CalendarDays, Clock, CheckCircle, XCircle } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { CalendarDays, Clock, CheckCircle, XCircle, Loader2 } from "lucide-react"
 import { DashboardHeader } from "@/components/dashboard/dashboard-header"
 import { DashboardShell } from "@/components/dashboard/dashboard-shell"
 import { ReservationList } from "@/components/dashboard/reservation-list"
 import { DashboardStats } from "@/components/dashboard/dashboard-stats"
 import { getUserReservations, getUserStats } from "@/lib/actions"
+import { useIsMobile } from "@/hooks/use-mobile"
 
 export default function DashboardPage() {
   const { user, isLoading } = useAuth()
+  const isMobile = useIsMobile()
+  const [activeTab, setActiveTab] = useState("approved")
   const [reservations, setReservations] = useState<any>({
     approved: [],
     pending: [],
@@ -121,14 +125,42 @@ export default function DashboardPage() {
       // Save to cache
       saveCachedData(user.id, categorizedReservations, userStats)
     } catch (error) {
-      console.error("Failed to fetch user data:", error)
-    } finally {
+      console.error("Failed to fetch user data:", error)    } finally {
       setIsLoadingData(false)
     }
   }
 
+  const statusOptions = [
+    { value: "approved", label: "Approved", icon: CheckCircle, color: "text-green-500" },
+    { value: "pending", label: "Pending", icon: Clock, color: "text-amber-500" },
+    { value: "cancelled", label: "Cancelled", icon: XCircle, color: "text-gray-500" },
+    { value: "rejected", label: "Rejected", icon: XCircle, color: "text-red-500" }
+  ]
+  const renderReservationList = (status: string) => {
+    const statusKey = status as keyof typeof reservations
+    const emptyMessages: Record<keyof typeof reservations, string> = {
+      approved: "You have no approved reservations.",
+      pending: "You have no pending reservation requests.",
+      cancelled: "You have no cancelled reservations.",
+      rejected: "You have no rejected reservations."
+    }
+
+    return (
+      <ReservationList
+        reservations={reservations[statusKey]}
+        emptyMessage={emptyMessages[statusKey]}
+        isLoading={isLoadingData}
+        onReservationUpdate={fetchData}
+      />
+    )
+  }
+
   if (isLoading) {
-    return <div className="container py-10">Loading...</div>
+    return (
+      <div className="h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    )
   }
 
   if (!user) {
@@ -138,68 +170,66 @@ export default function DashboardPage() {
       <DashboardHeader
         heading="Dashboard"
         text="View and manage your reservations"
-      />
-
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      />      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <DashboardStats stats={stats} isLoading={isLoadingData} />
       </div>
 
-      <Tabs defaultValue="approved" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="approved" className="flex items-center">
-            <CheckCircle className="mr-2 h-4 w-4 text-green-500" />
-            Approved
-          </TabsTrigger>
-          <TabsTrigger value="pending" className="flex items-center">
-            <Clock className="mr-2 h-4 w-4 text-amber-500" />
-            Pending
-          </TabsTrigger>
-          <TabsTrigger value="cancelled" className="flex items-center">
-            <XCircle className="mr-2 h-4 w-4 text-gray-500" />
-            Cancelled
-          </TabsTrigger>
-          <TabsTrigger value="rejected" className="flex items-center">
-            <XCircle className="mr-2 h-4 w-4 text-red-500" />
-            Rejected
-          </TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="approved" className="space-y-4">
-          <ReservationList
-            reservations={reservations.approved}
-            emptyMessage="You have no approved reservations."
-            isLoading={isLoadingData}
-            onReservationUpdate={fetchData}
-          />
-        </TabsContent>
-        
-        <TabsContent value="pending" className="space-y-4">
-          <ReservationList
-            reservations={reservations.pending}
-            emptyMessage="You have no pending reservation requests."
-            isLoading={isLoadingData}
-            onReservationUpdate={fetchData}
-          />
-        </TabsContent>
-        
-        <TabsContent value="cancelled" className="space-y-4">
-          <ReservationList
-            reservations={reservations.cancelled}
-            emptyMessage="You have no cancelled reservations."
-            isLoading={isLoadingData}
-            onReservationUpdate={fetchData}
-          />
-        </TabsContent>
-        
-        <TabsContent value="rejected" className="space-y-4">
-          <ReservationList
-            reservations={reservations.rejected}
-            emptyMessage="You have no rejected reservations."
-            isLoading={isLoadingData}
-            onReservationUpdate={fetchData}
-          />
-        </TabsContent>
-      </Tabs>
+      {isMobile ? (
+        <div className="space-y-4">
+          <div className="flex items-center space-x-2">
+            <Select value={activeTab} onValueChange={setActiveTab}>
+              <SelectTrigger className="w-full">
+                <SelectValue>
+                  {(() => {
+                    const currentStatus = statusOptions.find(option => option.value === activeTab)
+                    const Icon = currentStatus?.icon
+                    return (
+                      <div className="flex items-center">
+                        {Icon && <Icon className={`mr-2 h-4 w-4 ${currentStatus.color}`} />}
+                        {currentStatus?.label}
+                      </div>
+                    )
+                  })()}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {statusOptions.map((option) => {
+                  const Icon = option.icon
+                  return (
+                    <SelectItem key={option.value} value={option.value}>
+                      <div className="flex items-center">
+                        <Icon className={`mr-2 h-4 w-4 ${option.color}`} />
+                        {option.label}
+                      </div>
+                    </SelectItem>
+                  )
+                })}
+              </SelectContent>
+            </Select>
+          </div>
+          {renderReservationList(activeTab)}
+        </div>
+      ) : (
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+          <TabsList>
+            {statusOptions.map((option) => {
+              const Icon = option.icon
+              return (
+                <TabsTrigger key={option.value} value={option.value} className="flex items-center">
+                  <Icon className={`mr-2 h-4 w-4 ${option.color}`} />
+                  {option.label}
+                </TabsTrigger>
+              )
+            })}
+          </TabsList>
+          
+          {statusOptions.map((option) => (
+            <TabsContent key={option.value} value={option.value} className="space-y-4">
+              {renderReservationList(option.value)}
+            </TabsContent>
+          ))}
+        </Tabs>
+      )}
     </DashboardShell>
   )
 }

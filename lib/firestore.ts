@@ -118,11 +118,23 @@ async function validateReservationAvailability(data: ReservationRequest): Promis
       
       if (selectedDate < today) {
         errors.push("Cannot create reservations for past dates")
-      }
-    } else {
+      }    } else {
       // Check if date is in the past (precise comparison for advance booking)
       if (data.date < new Date()) {
         errors.push("Cannot create reservations for past dates")
+      }
+      
+      // Check minimum advance booking requirement
+      const minBookableDate = new Date()
+      minBookableDate.setDate(minBookableDate.getDate() + minAdvanceBookingDays)
+      minBookableDate.setHours(0, 0, 0, 0)
+      
+      const selectedDate = new Date(data.date)
+      selectedDate.setHours(0, 0, 0, 0)
+      
+      if (selectedDate < minBookableDate) {
+        const dayText = minAdvanceBookingDays === 1 ? "day" : "days"
+        errors.push(`Reservations must be made at least ${minAdvanceBookingDays} ${dayText} in advance`)
       }
     }
     

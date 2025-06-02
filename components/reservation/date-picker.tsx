@@ -11,13 +11,14 @@ import {
   eachDayOfInterval,
   isSameMonth,
   isSameDay,
+  addDays,
 } from "date-fns"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { getDateAvailability } from "@/lib/date-availability"
 import { getTimeSlots } from "@/lib/actions"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
-import { ChevronRight, ChevronLeft } from "lucide-react"
+import { ChevronRight, ChevronLeft, Star } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 
@@ -34,6 +35,7 @@ export function ReservationDatePicker({ selectedDate, onDateSelected, minBookabl
   const [isLoading, setIsLoading] = useState(true)
   const [selectedDateState, setSelectedDateState] = useState<Date | null>(selectedDate || null)
   const [currentMonth, setCurrentMonth] = useState(selectedDate || new Date())
+  const [earliestAvailableDate, setEarliestAvailableDate] = useState<Date | null>(null)
 
   // Fetch time slot settings on component mount
   useEffect(() => {
@@ -115,11 +117,45 @@ export function ReservationDatePicker({ selectedDate, onDateSelected, minBookabl
     return () => {
       abortController.abort();
     }
-  }, [currentMonth, selectedDateState])
-  // Use shared date availability checker
+  }, [currentMonth, selectedDateState])  // Use shared date availability checker
   const checkDateAvailability = (date: Date) => {
     return getDateAvailability(date, timeSlotSettings, availabilityMap)
   }
+  // Find the earliest available date (including limited availability)
+  const findEarliestAvailableDate = () => {
+    if (!timeSlotSettings || !minBookableDate) return null
+
+    const startDate = minBookableDate
+    const endDate = maxBookableDate || addDays(startDate, 90) // Check up to 3 months ahead if no max date
+    
+    // Start from the minimum bookable date and check each day
+    let currentDate = new Date(startDate)
+    let daysChecked = 0
+    const maxDaysToCheck = 90 // Limit search to avoid infinite loops
+
+    while (currentDate <= endDate && daysChecked < maxDaysToCheck) {
+      const availability = checkDateAvailability(currentDate)
+      const isPast = isBefore(currentDate, minBookableDate)
+      const isTooFarInFuture = maxBookableDate ? currentDate > maxBookableDate : false
+      
+      if (!isPast && !isTooFarInFuture && (availability === "available" || availability === "limited")) {
+        return currentDate
+      }
+      
+      currentDate = addDays(currentDate, 1)
+      daysChecked++
+    }
+    
+    return null
+  }
+
+  // Update earliest available date when data changes
+  useEffect(() => {
+    if (!isLoading && timeSlotSettings && availabilityMap) {
+      const earliest = findEarliestAvailableDate()
+      setEarliestAvailableDate(earliest)
+    }
+  }, [isLoading, timeSlotSettings, availabilityMap, minBookableDate, maxBookableDate])
 
   // Handle date selection
   const handleDateSelect = (date: Date) => {
@@ -174,8 +210,7 @@ export function ReservationDatePicker({ selectedDate, onDateSelected, minBookabl
   return (
     <Card className="w-full">
       <CardHeader>
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">          <div>
             <CardTitle>Select a Date</CardTitle>
             <CardDescription>
               Choose a date for your reservation. Color indicates availability.
@@ -224,9 +259,7 @@ export function ReservationDatePicker({ selectedDate, onDateSelected, minBookabl
                 <div key={day} className="text-center font-medium py-2">
                   {day}
                 </div>
-              ))}
-
-              {/* Calendar days */}
+              ))}              {/* Calendar days */}
               {allDays.map((day) => {                
                 const isCurrentMonth = isSameMonth(day, currentMonth)                
                 const isSelected = selectedDateState ? isSameDay(day, selectedDateState) : false
@@ -234,7 +267,9 @@ export function ReservationDatePicker({ selectedDate, onDateSelected, minBookabl
                 const isToday = isSameDay(day, new Date())
                 const isPast = minBookableDate ? isBefore(day, minBookableDate) : false
                 const isTooFarInFuture = maxBookableDate ? day > maxBookableDate : false
-                const isBookable = !isPast && !isTooFarInFuture && availability !== "unavailable" && isCurrentMonth                
+                const isBookable = !isPast && !isTooFarInFuture && availability !== "unavailable" && isCurrentMonth
+                const isEarliestAvailable = earliestAvailableDate ? isSameDay(day, earliestAvailableDate) : false
+                
                 // Debug log for today's date to verify same-day booking
                 // if (isToday) {
                 //   console.log(`Date picker - Today ${format(day, "yyyy-MM-dd")}: isPast=${isPast}, availability=${availability}, isBookable=${isBookable}, minBookableDate=${minBookableDate ? format(minBookableDate, "yyyy-MM-dd HH:mm:ss") : 'null'}`)
@@ -251,13 +286,15 @@ export function ReservationDatePicker({ selectedDate, onDateSelected, minBookabl
                   tooltipMessage = "Reservations must be made in advance"
                 } else if (isTooFarInFuture) {
                   tooltipMessage = "Date is too far in advance for booking"
+                } else if (isEarliestAvailable) {
+                  tooltipMessage = "Earliest available date"
                 }
 
                 return (
                   <div key={day.toString()} className="aspect-square p-1">
                     <button
                       className={cn(
-                        "h-full w-full rounded-md flex items-center justify-center text-sm transition-colors",
+                        "h-full w-full rounded-md flex items-center justify-center text-sm transition-colors relative",
                         isCurrentMonth ? "text-foreground" : "text-muted-foreground opacity-50",
                         isSelected && "bg-primary text-primary-foreground",
                         !isSelected &&
@@ -283,14 +320,17 @@ export function ReservationDatePicker({ selectedDate, onDateSelected, minBookabl
                       disabled={!isBookable}
                       title={tooltipMessage}
                     >
-                      {format(day, "d")}
+                      <span className="flex items-center justify-center">
+                        {format(day, "d")}
+                        {isEarliestAvailable && (
+                          <Star className="w-3 h-3 ml-1 fill-current text-yellow-500" />
+                        )}
+                      </span>
                     </button>
                   </div>
                 )
               })}
-            </div>
-
-            {/* Legend */}
+            </div>            {/* Legend */}
             <div className="flex flex-wrap items-center justify-center gap-4">
               <div className="flex items-center">
                 <Badge variant="outline" className="bg-green-100 text-green-800">
@@ -308,6 +348,12 @@ export function ReservationDatePicker({ selectedDate, onDateSelected, minBookabl
                 <Badge variant="outline" className="bg-red-100 text-red-800">
                   <div className="w-2 h-2 rounded-full bg-red-500 mr-1"></div>
                   Unavailable
+                </Badge>
+              </div>
+              <div className="flex items-center">
+                <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
+                  <Star className="w-3 h-3 mr-1 fill-current text-yellow-500" />
+                  Earliest Available
                 </Badge>
               </div>
             </div>

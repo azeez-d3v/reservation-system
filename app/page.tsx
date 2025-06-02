@@ -17,7 +17,7 @@ import {
   addMinutes,
   differenceInMinutes,
 } from "date-fns"
-import { ChevronLeft, ChevronRight, Clock, Info, CalendarIcon, Users, AlertCircle } from "lucide-react"
+import { ChevronLeft, ChevronRight, Clock, Info, CalendarIcon, Users, AlertCircle, Star } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -35,6 +35,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Progress } from "@/components/ui/progress"
 import { useToast } from "@/components/ui/use-toast"
+import { VisuallyHidden } from "@radix-ui/react-visually-hidden"
 
 export default function HomePage() {
   const router = useRouter()
@@ -82,12 +83,12 @@ export default function HomePage() {
   const [selectedEndTime, setSelectedEndTime] = useState<string | null>(null)
   const [maxPossibleDuration, setMaxPossibleDuration] = useState<number>(540)
   const [hasOverlap, setHasOverlap] = useState(false)
-  
-  // Refs for cleanup
+    // Refs for cleanup
   const datesFetchRef = useRef<AbortController | null>(null)
   const timeSlotsFetchRef = useRef<AbortController | null>(null)
     // Dynamic operational hours based on selected date and settings
   const [operationalHours, setOperationalHours] = useState({ start: "08:00", end: "17:00" })
+  const [earliestAvailableDate, setEarliestAvailableDate] = useState<Date | null>(null)
   
   // Calculate the minimum bookable date based on system settings - memoized
   const minBookableDate = useMemo(() => {
@@ -161,11 +162,37 @@ export default function HomePage() {
     }
     
     return options
-  }, [timeSlotSettings])
-  // Use shared date availability checker
+  }, [timeSlotSettings])  // Use shared date availability checker
   const checkDateAvailability = useCallback((date: Date) => {
     return getDateAvailability(date, timeSlotSettings, availabilityMap)
   }, [availabilityMap, timeSlotSettings])
+
+  // Find the earliest available date (including limited availability)
+  const findEarliestAvailableDate = useCallback(() => {
+    if (!timeSlotSettings || !minBookableDate) return null
+
+    const startDate = minBookableDate
+    const maxBookableDate = addDays(startDate, 90) // Check up to 3 months ahead
+    
+    // Start from the minimum bookable date and check each day
+    let currentDate = new Date(startDate)
+    let daysChecked = 0
+    const maxDaysToCheck = 90 // Limit search to avoid infinite loops
+
+    while (currentDate <= maxBookableDate && daysChecked < maxDaysToCheck) {
+      const availability = checkDateAvailability(currentDate)
+      const isPast = isBefore(currentDate, minBookableDate)
+      
+      if (!isPast && (availability === "available" || availability === "limited")) {
+        return currentDate
+      }
+      
+      currentDate = addDays(currentDate, 1)
+      daysChecked++
+    }
+    
+    return null
+  }, [checkDateAvailability, timeSlotSettings, minBookableDate])
 
   // Fetch system settings - only once on mount
   useEffect(() => {
@@ -287,12 +314,19 @@ export default function HomePage() {
     }
 
     fetchAvailableDates()
-    
-    return () => {
+      return () => {
       abortController.abort()
       datesFetchRef.current = null
     }
   }, [currentMonth])
+
+  // Update earliest available date when data changes
+  useEffect(() => {
+    if (!isLoadingDates && timeSlotSettings && availabilityMap && minBookableDate) {
+      const earliest = findEarliestAvailableDate()
+      setEarliestAvailableDate(earliest)
+    }
+  }, [isLoadingDates, timeSlotSettings, availabilityMap, minBookableDate, findEarliestAvailableDate])
 
   // Fetch time slots when a date is selected
   useEffect(() => {
@@ -613,13 +647,13 @@ export default function HomePage() {
                       <div key={i} className="aspect-square p-1">
                         <Skeleton className="h-full w-full rounded-md" />
                       </div>
-                    ))
-                  : allDays.map((day) => {                      const isCurrentMonth = isSameMonth(day, currentMonth)
+                    ))                  : allDays.map((day) => {                      const isCurrentMonth = isSameMonth(day, currentMonth)
                       const isSelected = selectedDate ? isSameDay(day, selectedDate) : false
                       const availability = isCurrentMonth ? checkDateAvailability(day) : "unavailable"
                       const isToday = isSameDay(day, new Date())
                       const isPast = minBookableDate ? isBefore(day, minBookableDate) : false
                       const isBookable = !isPast && availability !== "unavailable" && isCurrentMonth
+                      const isEarliestAvailable = earliestAvailableDate ? isSameDay(day, earliestAvailableDate) : false
 
                       // // Debug log for problematic dates
                       // if (isCurrentMonth && (day.getDay() === 5 || day.getDay() === 6)) {
@@ -650,19 +684,22 @@ export default function HomePage() {
                               isToday && !isSelected && "border border-primary",
                               isPast && "opacity-50 cursor-not-allowed",
                               "disabled:opacity-50 disabled:cursor-not-allowed",
-                            )}
-                            onClick={() => isBookable && handleDateSelect(day)}
+                            )}                            onClick={() => isBookable && handleDateSelect(day)}
                             disabled={!isBookable}
-                            title={isPast ? "Reservations must be at least 1 week in advance" : ""}
+                            title={isPast ? "Reservations must be at least 1 week in advance" : 
+                                   isEarliestAvailable ? "Earliest available date" : ""}
                           >
-                            {format(day, "d")}
+                            <span className="flex items-center justify-center">
+                              {format(day, "d")}
+                              {isEarliestAvailable && (
+                                <Star className="w-3 h-3 ml-1 fill-current text-yellow-500" />
+                              )}
+                            </span>
                           </button>
                         </div>
                       )
                     })}
-              </div>
-
-              {/* Legend */}
+              </div>              {/* Legend */}
               <div className="flex flex-wrap items-center gap-4 pt-2">
                 <div className="flex items-center">
                   <Badge variant="outline" className="bg-green-100 text-green-800">
@@ -682,14 +719,23 @@ export default function HomePage() {
                     Unavailable
                   </Badge>
                 </div>
+                <div className="flex items-center">
+                  <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
+                    <Star className="w-3 h-3 mr-1 fill-current text-yellow-500" />
+                    Earliest Available
+                  </Badge>
+                </div>
               </div>
             </div>
           </CardContent>
-        </Card>
-        
-        {/* Reservation Sheet - Completely Redesigned */}
+        </Card>        {/* Reservation Sheet - Completely Redesigned */}
         <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
-          <SheetContent className="w-full sm:max-w-lg p-0 flex flex-col overflow-hidden">            {/* Header with Progress */}
+          <SheetContent className="w-full sm:max-w-lg p-0 flex flex-col overflow-hidden">
+            <VisuallyHidden>
+              <SheetTitle>Gymnasium Reservation</SheetTitle>
+            </VisuallyHidden>
+            
+            {/* Header with Progress */}
             <div className="bg-gradient-to-r from-primary/5 to-primary/10 border-b">
               <div className="p-4 sm:p-6">
                 <div className="mb-4">
