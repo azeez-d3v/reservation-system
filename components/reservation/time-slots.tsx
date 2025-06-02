@@ -803,8 +803,7 @@ export function ReservationTimeSlots({
                               <div key={`start-${slot.time}`} className="relative group">
                                 <Button
                                   variant="outline"
-                                  size="sm"
-                                  className={cn(
+                                  size="sm"                                  className={cn(
                                     "h-auto py-2 px-1 relative flex flex-col items-center justify-center transition-all duration-200 w-full",
                                     "border rounded-lg shadow-sm hover:shadow-md overflow-hidden",                                    // Styling based on availability and overlapping settings
                                     systemSettings?.allowOverlapping && slot.occupancy < slot.capacity && "border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-800 hover:border-blue-300",
@@ -812,22 +811,23 @@ export function ReservationTimeSlots({
                                     !systemSettings?.allowOverlapping && isAvailable && "border-green-200 bg-green-50 hover:bg-green-100 text-green-800 hover:border-green-300",
                                     !systemSettings?.allowOverlapping && isLimited && "border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-800 hover:border-amber-300",
                                     !systemSettings?.allowOverlapping && isFullyBooked && "border-red-200 bg-red-50 text-red-600 opacity-60 cursor-not-allowed hover:bg-red-50",
-                                    selectedStartTime === slot.time && "ring-2 ring-offset-2 ring-blue-500 scale-105 shadow-lg border-blue-400"
-                                  )}                                  onClick={() => (systemSettings?.allowOverlapping || (slot.available && slot.occupancy < slot.capacity)) && handleStartTimeClick(slot.time)}
+                                    selectedStartTime === slot.time && "shadow-lg border-blue-400"
+                                  )}onClick={() => (systemSettings?.allowOverlapping || (slot.available && slot.occupancy < slot.capacity)) && handleStartTimeClick(slot.time)}
                                   disabled={!systemSettings?.allowOverlapping && (!slot.available || slot.occupancy >= slot.capacity)}
                                 >                                  {/* More compact layout with time display */}
                                   <span className="text-xs font-semibold">
                                     {formatTimeForDisplay(slot.time)}
                                   </span>
-                                  
-                                  {/* Compact occupancy indicator */}
-                                  <div className={cn(
-                                    "flex items-center text-xs",
-                                    slot.occupancy >= slot.capacity ? "text-red-500 font-medium" : "opacity-75"
-                                  )}>
-                                    <Users className="h-3 w-3 mr-0.5" />
-                                    <span>{slot.occupancy}/{slot.capacity}</span>
-                                  </div>
+                                    {/* Compact occupancy indicator - only show when overlapping is enabled */}
+                                  {systemSettings?.allowOverlapping && (
+                                    <div className={cn(
+                                      "flex items-center text-xs",
+                                      slot.occupancy >= slot.capacity ? "text-red-500 font-medium" : "opacity-75"
+                                    )}>
+                                      <Users className="h-3 w-3 mr-0.5" />
+                                      <span>{slot.occupancy}/{slot.capacity}</span>
+                                    </div>
+                                  )}
                                   
                                   {/* Status indicator */}
                                   <div className={cn(

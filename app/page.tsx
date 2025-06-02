@@ -818,8 +818,7 @@ export default function HomePage() {
                         </p>
                       </div>
                       
-                      <div className="flex-1 overflow-hidden p-4">
-                        <TimeSlotGrid
+                      <div className="flex-1 overflow-hidden p-4">                        <TimeSlotGrid
                           timeSlots={timeSlots.map((slot) => ({
                             ...slot,
                             status: slot.status || (slot.available ? "available" : "unavailable"),
@@ -831,6 +830,7 @@ export default function HomePage() {
                           use12HourFormat={use12HourFormat}
                           hasOverlappingReservations={hasOverlappingReservations}
                           timeSlotSettings={timeSlotSettings}
+                          systemSettings={systemSettings}
                           operationalHours={operationalHours}
                         />
                       </div>

@@ -35,6 +35,7 @@ interface TimeSlotGridProps {
   use12HourFormat?: boolean
   hasOverlappingReservations?: boolean
   timeSlotSettings?: TimeSlotSettings
+  systemSettings?: any
   operationalHours?: { start: string; end: string }
 }
 
@@ -47,8 +48,9 @@ export function TimeSlotGrid({
   use12HourFormat = true,
   hasOverlappingReservations = false,
   timeSlotSettings,
+  systemSettings,
   operationalHours: propOperationalHours,
-}: TimeSlotGridProps) {  const [sortedTimeSlots, setSortedTimeSlots] = useState<any[]>([])
+}: TimeSlotGridProps) {const [sortedTimeSlots, setSortedTimeSlots] = useState<any[]>([])
   const [selectedStartTime, setSelectedStartTime] = useState<string | null>(selectedTime || null)
   const [selectedDuration, setSelectedDuration] = useState<number>(timeSlotSettings?.minDuration || 60)
   const [selectedEndTime, setSelectedEndTime] = useState<string | null>(null)
@@ -306,8 +308,7 @@ export function TimeSlotGrid({
                           {slot.status.charAt(0).toUpperCase() + slot.status.slice(1)}
                         </Badge>
                       </div>
-                      
-                      {slot.capacity && slot.occupancy !== undefined && (
+                        {systemSettings?.allowOverlapping && slot.capacity && slot.occupancy !== undefined && (
                         <div className="flex items-center gap-2">
                           <Users className="h-3 w-3" />
                           <span>Occupancy: {slot.occupancy}/{slot.capacity}</span>
@@ -320,7 +321,7 @@ export function TimeSlotGrid({
                         </div>
                       )}
                       
-                      {slot.occupancy !== undefined && slot.occupancy > 0 && !slot.capacity && (
+                      {systemSettings?.allowOverlapping && slot.occupancy !== undefined && slot.occupancy > 0 && !slot.capacity && (
                         <div className="flex items-center gap-2">
                           <Users className="h-3 w-3" />
                           <span>Current bookings: {slot.occupancy}</span>
@@ -364,13 +365,12 @@ export function TimeSlotGrid({
                       <TooltipTrigger asChild>
                         <Button
                           variant="outline"
-                          size="sm"
-                          className={cn(
+                          size="sm"                          className={cn(
                             "justify-center relative h-10 py-2 px-1 text-xs sm:text-sm w-full",
                             isAvailable && "border-green-500 bg-green-50 hover:bg-green-100 text-green-800 shadow-sm",
                             isLimited && "border-amber-500 bg-amber-50 hover:bg-amber-100 text-amber-800 shadow-sm",
                             isFullyBooked && "border-red-300 bg-red-50 text-red-700 opacity-70 cursor-not-allowed hover:bg-red-50",
-                            selectedStartTime === slot.time && "ring-2 ring-offset-1 ring-primary shadow",
+                            selectedStartTime === slot.time && "shadow",
                           )}
                           onClick={() => slot.available && handleTimeSlotClick(slot.time)}
                           disabled={!slot.available}
