@@ -13,7 +13,26 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/components/ui/use-toast"
 import { useSession } from "next-auth/react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Lock } from "lucide-react"
+import { Lock, Unlock, AlertTriangle } from "lucide-react"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import {
   getSettings,
   updateSettings,
@@ -38,7 +57,6 @@ export function AdminSettings() {
   // Check if user has admin privileges (not staff)
   const isAdmin = session?.user?.role === "admin"
   const isStaff = session?.user?.role === "staff"
-
   // Settings states
   const [systemSettings, setSystemSettings] = useState<SystemSettings | null>(null)
   const [timeSlotSettings, setTimeSlotSettings] = useState<TimeSlotSettings | null>(null)
@@ -48,6 +66,12 @@ export function AdminSettings() {
   const [originalSystemSettings, setOriginalSystemSettings] = useState<SystemSettings | null>(null)
   const [originalTimeSlotSettings, setOriginalTimeSlotSettings] = useState<TimeSlotSettings | null>(null)
   const [originalEmailSettings, setOriginalEmailSettings] = useState<EmailSettings | null>(null)
+
+  // Contact email lock state
+  const [isContactEmailLocked, setIsContactEmailLocked] = useState(true)
+  const [showContactEmailDialog, setShowContactEmailDialog] = useState(false)
+  const [showUnlockConfirmation, setShowUnlockConfirmation] = useState(false)
+  const [pendingEmailValue, setPendingEmailValue] = useState("")
 
   // Local storage keys
   const STORAGE_KEYS = {
@@ -132,11 +156,11 @@ export function AdminSettings() {
     
     return null
   }
-
   const setCachedSettings = (settings: any) => {
     saveToLocalStorage(STORAGE_KEYS.cache, settings)
     saveToLocalStorage(STORAGE_KEYS.cacheTimestamp, Date.now())
   }
+
   useEffect(() => {
     const fetchSettings = async () => {
       setIsLoading(true)
@@ -257,8 +281,7 @@ export function AdminSettings() {
           title: "Error",
           description: "Failed to load settings",
           variant: "destructive",
-        })
-      } finally {
+        })      } finally {
         setIsLoading(false)
       }
     }
@@ -278,7 +301,6 @@ export function AdminSettings() {
       saveToLocalStorage(STORAGE_KEYS.timeSlots, timeSlotSettings)
     }
   }, [timeSlotSettings])
-
   useEffect(() => {
     if (emailSettings && hasEmailChanges()) {
       saveToLocalStorage(STORAGE_KEYS.email, emailSettings)
@@ -298,9 +320,21 @@ export function AdminSettings() {
     try {
       await updateSettings(systemSettings)
       
+      // Check if contact email was changed before updating original state
+      const contactEmailChanged = originalSystemSettings && systemSettings.contactEmail !== originalSystemSettings.contactEmail
+      
       // Update original state and clear draft
       setOriginalSystemSettings(systemSettings)
       localStorage.removeItem(STORAGE_KEYS.system)
+      
+      // Auto-lock contact email after saving if it was changed
+      if (contactEmailChanged) {
+        setIsContactEmailLocked(true)
+        toast({
+          title: "Contact Email Auto-Locked",
+          description: "Contact email has been automatically locked after saving changes.",
+        })
+      }
       
       // Update cache
       if (timeSlotSettings && emailSettings) {
@@ -607,16 +641,48 @@ export function AdminSettings() {
                   value={systemSettings.organizationName}
                   onChange={(e) => setSystemSettings({ ...systemSettings, organizationName: e.target.value })}
                 />
-              </div>
-
-              <div className="space-y-2">
+              </div>              <div className="space-y-2">
                 <Label htmlFor="contactEmail">Contact Email</Label>
-                <Input
-                  id="contactEmail"
-                  type="email"
-                  value={systemSettings.contactEmail}
-                  onChange={(e) => setSystemSettings({ ...systemSettings, contactEmail: e.target.value })}
-                />              </div>
+                <div className="relative">
+                  <Input
+                    id="contactEmail"
+                    type="email"
+                    value={systemSettings.contactEmail}
+                    onChange={(e) => {
+                      if (!isContactEmailLocked) {
+                        setSystemSettings({ ...systemSettings, contactEmail: e.target.value })
+                      } else {
+                        setPendingEmailValue(e.target.value)
+                        setShowContactEmailDialog(true)
+                      }
+                    }}
+                    disabled={isContactEmailLocked}
+                    className={isContactEmailLocked ? "pr-10" : ""}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 p-0"
+                    onClick={() => {
+                      if (isContactEmailLocked) {
+                        setShowUnlockConfirmation(true)
+                      } else {
+                        setIsContactEmailLocked(true)
+                      }
+                    }}
+                  >
+                    {isContactEmailLocked ? (
+                      <Lock className="h-3 w-3" />
+                    ) : (
+                      <Unlock className="h-3 w-3" />
+                    )}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  This email is used for admin notifications. Click the lock icon to modify.
+                </p>
+              </div>
 
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
@@ -1154,8 +1220,7 @@ export function AdminSettings() {
             </CardFooter>
           </Card>
         </TabsContent>
-        
-        <TabsContent value="users" className="space-y-6">
+          <TabsContent value="users" className="space-y-6">
           <Card>
             <CardHeader>
               <CardTitle>User Management</CardTitle>
@@ -1169,6 +1234,72 @@ export function AdminSettings() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Contact Email Warning Dialog */}
+      <Dialog open={showContactEmailDialog} onOpenChange={setShowContactEmailDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              Contact Email Warning
+            </DialogTitle>
+            <DialogDescription className="space-y-2">
+              <p>
+                The contact email is used for important admin notifications including:
+              </p>
+              <ul className="list-disc pl-5 space-y-1">
+                <li>New reservation requests</li>
+                <li>System error notifications</li>
+                <li>User account notifications</li>
+                <li>System status updates</li>
+              </ul>
+              <p className="font-medium text-foreground">
+                Changing this email will affect where these critical notifications are sent.
+              </p>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowContactEmailDialog(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => {
+                setShowContactEmailDialog(false)
+                setShowUnlockConfirmation(true)
+              }}
+            >
+              I Understand, Unlock Field
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Unlock Confirmation Dialog */}
+      <AlertDialog open={showUnlockConfirmation} onOpenChange={setShowUnlockConfirmation}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unlock Contact Email Field?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to unlock the contact email field? This will allow you to modify the email address used for admin notifications.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setIsContactEmailLocked(false)
+                setShowUnlockConfirmation(false)
+                if (pendingEmailValue && pendingEmailValue !== systemSettings.contactEmail) {
+                  setSystemSettings({ ...systemSettings, contactEmail: pendingEmailValue })
+                  setPendingEmailValue("")
+                }
+              }}
+            >
+              Unlock
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
