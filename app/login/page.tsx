@@ -21,6 +21,7 @@ export default function LoginPage() {
   const redirect = searchParams.get("redirect") || "/dashboard"
   const date = searchParams.get("date")
   const time = searchParams.get("time")
+  const sessionId = searchParams.get("sessionId")
   const error = searchParams.get("error")
 
   // Build the full redirect URL with all parameters
@@ -35,10 +36,22 @@ export default function LoginPage() {
     }
 
     let redirectUrl = redirect
+    const params = new URLSearchParams()
 
-    // If we have date and time parameters, add them to the redirect URL
+    // Add sessionId parameter if it exists (highest priority for reservation flow)
+    if (sessionId) {
+      params.append("sessionId", sessionId)
+    }
+
+    // Add date and time parameters if they exist (fallback for direct URL parameters)
     if (date && time) {
-      redirectUrl += `?date=${date}&time=${time}`
+      params.append("date", date)
+      params.append("time", time)
+    }
+
+    // Append parameters to redirect URL if any exist
+    if (params.toString()) {
+      redirectUrl += `?${params.toString()}`
     }
 
     return redirectUrl
@@ -140,12 +153,16 @@ export default function LoginPage() {
         )}
 
         {/* Reservation Details */}
-        {date && time && (
+        {(sessionId || (date && time)) && (
           <div className="mb-4 p-4 rounded-xl bg-emerald-50 border border-emerald-200 dark:bg-emerald-950/50 dark:border-emerald-800">
             <div className="flex items-center text-emerald-800 dark:text-emerald-200 mb-1">
               <CalendarDays className="mr-2 h-4 w-4" />
               <span className="font-medium text-sm">
-                {format(new Date(date), "EEEE, MMMM d, yyyy")} at {time}
+                {sessionId ? (
+                  "Time slot selection saved - sign in to complete your reservation"
+                ) : date && time ? (
+                  `${format(new Date(date), "EEEE, MMMM d, yyyy")} at ${time}`
+                ) : null}
               </span>
             </div>
             <p className="text-xs text-emerald-700 dark:text-emerald-300">

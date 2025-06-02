@@ -33,13 +33,19 @@ export function ReservationList({
     reservationDate.setHours(hours, minutes, 0, 0)
     return reservationDate < now
   }
+  // Filter reservations based on status
+  // For pending requests, show ALL regardless of date (they need user/admin action)
+  // For other statuses, only show future reservations
+  const filteredReservations = reservations.filter(reservation => {
+    // Always show pending requests regardless of date - they need user review
+    if (reservation.status === "pending") {
+      return true
+    }
+    // For non-pending reservations, filter out past ones
+    return !isReservationPast(new Date(reservation.date), reservation.endTime)
+  })
 
-  // Filter out past reservations and transform the remaining data
-  const futureReservations = reservations.filter(reservation => 
-    !isReservationPast(new Date(reservation.date), reservation.endTime)
-  )
-
-  const tableData: ReservationTableData[] = futureReservations.map((reservation) => ({
+  const tableData: ReservationTableData[] = filteredReservations.map((reservation) => ({
     id: reservation.id,
     purpose: reservation.purpose,
     date: new Date(reservation.date),
@@ -68,9 +74,8 @@ export function ReservationList({
   const columns = createColumns({
     onViewDetails: handleViewDetails,
     onCancelReservation: handleCancelReservation,
-  })
-  // If no future reservations and not loading, show empty state
-  if (!isLoading && (!futureReservations || futureReservations.length === 0)) {
+  })  // If no filtered reservations and not loading, show empty state
+  if (!isLoading && (!filteredReservations || filteredReservations.length === 0)) {
     return (
       <Card>
         <CardContent className="flex flex-col items-center justify-center py-10 text-center">

@@ -31,8 +31,7 @@ export function AdminReservationList({
   const [selectedReservation, setSelectedReservation] = useState<AdminReservationTableData | null>(null)
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false)
   const [actionDialogOpen, setActionDialogOpen] = useState(false)
-  const [actionType, setActionType] = useState<"approve" | "reject" | "cancel" | null>(null)
-  // Helper function to check if reservation is past its date and time
+  const [actionType, setActionType] = useState<"approve" | "reject" | "cancel" | null>(null)  // Helper function to check if reservation is past its date and time
   const isReservationPast = (date: Date, endTime: string) => {
     const now = new Date()
     const reservationDate = new Date(date)
@@ -41,12 +40,20 @@ export function AdminReservationList({
     return reservationDate < now
   }
 
-  // Filter out past reservations and transform the remaining data
-  const futureReservations = reservations.filter(reservation => 
-    !isReservationPast(new Date(reservation.date), reservation.endTime)
-  )
+  // Filter reservations based on type and status
+  // For pending requests, show ALL regardless of date (they need admin action)
+  // For other statuses, only show future reservations
+  const filteredReservations = reservations.filter(reservation => {
+    // Always show pending requests regardless of date - they need admin review
+    if (reservation.status === "pending") {
+      return true
+    }
+    
+    // For non-pending reservations, filter out past ones
+    return !isReservationPast(new Date(reservation.date), reservation.endTime)
+  })
 
-  const tableData: AdminReservationTableData[] = futureReservations.map((reservation) => ({
+  const tableData: AdminReservationTableData[] = filteredReservations.map((reservation) => ({
     id: reservation.id,
     purpose: reservation.purpose,
     date: new Date(reservation.date),
@@ -86,9 +93,8 @@ export function AdminReservationList({
     onAdminAction: handleAdminAction,
     showAdminActions,
     type,
-  })
-  // If no future reservations and not loading, show empty state
-  if (!isLoading && (!futureReservations || futureReservations.length === 0)) {
+  })  // If no filtered reservations and not loading, show empty state
+  if (!isLoading && (!filteredReservations || filteredReservations.length === 0)) {
     return (
       <Card>
         <CardContent className="flex flex-col items-center justify-center py-10 text-center">

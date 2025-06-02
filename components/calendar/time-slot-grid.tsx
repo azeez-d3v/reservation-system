@@ -358,8 +358,7 @@ export function TimeSlotGrid({
                     </div>
                   </div>
                 )
-                
-                return (
+                  return (
                   <div key={`slot-${slot.time}`} className="relative">
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -374,7 +373,7 @@ export function TimeSlotGrid({
                             selectedStartTime === slot.time && "ring-2 ring-offset-1 ring-primary shadow",
                           )}
                           onClick={() => slot.available && handleTimeSlotClick(slot.time)}
-                          disabled={!slot.available || requiresLogin}
+                          disabled={!slot.available}
                         >
                           <div className="flex flex-col items-center w-full">
                             <div className="flex items-center gap-1">
@@ -385,7 +384,7 @@ export function TimeSlotGrid({
                             </div>
                           </div>
                         </Button>
-                      </TooltipTrigger>                        
+                      </TooltipTrigger>
                       <TooltipContent side="top" align="center" sideOffset={5} className="z-50 max-w-[200px] sm:max-w-xs">
                         {tooltipContent}
                       </TooltipContent>

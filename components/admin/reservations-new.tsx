@@ -22,10 +22,10 @@ export function AdminReservations() {
     cancelled: [],
     rejected: []
   })
+  
   const [isLoading, setIsLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState("approved")
+  const [activeTab, setActiveTab] = useState("pending")
   const isMobile = useIsMobile()
-
   useEffect(() => {
     // Set up real-time listener for all reservations
     const q = query(
@@ -34,8 +34,10 @@ export function AdminReservations() {
     )
 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      console.log("Admin Reservations - Total docs fetched:", querySnapshot.docs.length)
       const allReservations = querySnapshot.docs.map((doc) => {
         const data = doc.data()
+        console.log("Admin Reservations - Doc data:", { id: doc.id, status: data.status })
         return {
           id: doc.id,
           ...data,
@@ -53,7 +55,13 @@ export function AdminReservations() {
         rejected: allReservations.filter(r => r.status === "rejected")
       }
       
-      setReservations(categorizedReservations)
+      console.log("Admin Reservations - Categorized:", {
+        approved: categorizedReservations.approved.length,
+        pending: categorizedReservations.pending.length,
+        cancelled: categorizedReservations.cancelled.length,
+        rejected: categorizedReservations.rejected.length
+      })
+        setReservations(categorizedReservations)
       setIsLoading(false)
     }, (error) => {
       console.error("Failed to fetch reservations:", error)
@@ -62,7 +70,9 @@ export function AdminReservations() {
 
     // Cleanup listener on unmount
     return () => unsubscribe()
-  }, [])  // Legacy fetchReservations function for compatibility with onReservationUpdate
+  }, [])
+
+  // Legacy fetchReservations function for compatibility with onReservationUpdate
   const fetchReservations = async () => {
     // This is now handled by the real-time listener
     // But we keep this function for onReservationUpdate callback compatibility

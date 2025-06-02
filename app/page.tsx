@@ -808,7 +808,7 @@ export default function HomePage() {
                     </div>
                   ) : (
                     <div className="flex-1 flex flex-col overflow-hidden">
-                      <div className="p-4 border-b bg-muted/30">
+                      <div className="pl-4 pr-4 pb-4 border-b">
                         <div className="flex items-center gap-2 mb-2">
                           <Clock className="h-4 w-4 text-primary" />
                           <h3 className="font-medium">Available Time Slots</h3>
