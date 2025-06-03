@@ -39,17 +39,10 @@ export function AdminReservationList({
     reservationDate.setHours(hours, minutes, 0, 0)
     return reservationDate < now
   }
-
   // Filter reservations based on type and status
-  // For pending requests, show ALL regardless of date (they need admin action)
-  // For other statuses, only show future reservations
+  // Hide all reservations (including pending) that are past their date and time
   const filteredReservations = reservations.filter(reservation => {
-    // Always show pending requests regardless of date - they need admin review
-    if (reservation.status === "pending") {
-      return true
-    }
-    
-    // For non-pending reservations, filter out past ones
+    // Filter out past reservations for all statuses including pending
     return !isReservationPast(new Date(reservation.date), reservation.endTime)
   })
 

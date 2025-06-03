@@ -117,7 +117,8 @@ export function ReservationDataTable<TData, TValue>({
   return (
     <div className="space-y-4">
       {/* Filters and Controls */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">        <div className="flex flex-1 flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">        
+        <div className="flex flex-1 flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
           {/* Search */}
           <div className="relative">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -163,7 +164,8 @@ export function ReservationDataTable<TData, TValue>({
               })}
           </DropdownMenuContent>
         </DropdownMenu>
-      </div>      {/* Results Summary */}
+      </div>      
+      {/* Results Summary */}
       {table.getFilteredRowModel().rows.length > 0 && (
         <div className="flex items-center justify-between text-sm text-muted-foreground">
           <div>

@@ -5,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { AdminReservations } from "@/components/admin/reservations-new"
 import { AdminSettings } from "@/components/admin/settings"
-import { Calendar, Settings } from "lucide-react"
+import { Calendar, Settings, Loader2 } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth"
 import { redirect } from "next/navigation"
 import { canModifySettings, type UserRole } from "@/lib/permissions"
@@ -30,7 +30,10 @@ export default function AdminPage() {
   }, [activeTab, hasSettingsAccess])
 
   if (isLoading) {
-    return <div className="container py-10">Loading...</div>
+    return (
+    <div className="h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>)
   }
 
   if (!user || (user.role !== "admin" && user.role !== "staff")) {
