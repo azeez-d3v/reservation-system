@@ -60,35 +60,38 @@ export const authOptions: NextAuthOptions = {
         session.user.status = token.status as string
       }
       return session
-    },
+    },    
     async signIn({ user, account, profile }) {
       if (account?.provider === "google" && user.email) {
-        // Check if email has the required domain
-        if (!profile?.email?.endsWith("@leadersics.edu.ph")) {
-          console.log(`Sign in denied for email: ${user.email} - Invalid domain`)
+        // Check if email has the required domain - use user.email as fallback
+        const emailToCheck = user.email || profile?.email
+        if (!emailToCheck?.endsWith("@leadersics.edu.ph")) {
+          console.log(`Sign in denied for email: ${emailToCheck} - Invalid domain`)
           return false
         }
 
-        // Check if email is verified 
-        // const googleProfile = profile as any
-        // if (!googleProfile?.email_verified) {
-        //   return false
-        // }
-        
-        try {
+        try {          
           // Ensure the user document exists in our custom collection
           const userDoc = await adminDb.collection("users").doc(user.email).get()
           if (!userDoc.exists) {
-            // Create new user document
-            await adminDb.collection("users").doc(user.email).set({
-              name: user.name,
+            // Create new user document - filter out undefined values
+            const userData: any = {
+              name: user.name || profile?.name || "Unknown User",
               email: user.email,
-              image: user.image,
               role: "user",
               status: "active",
               createdAt: new Date(),
               updatedAt: new Date(),
-            })
+            }
+            
+            // Only add image if it's not undefined
+            if (user.image) {
+              userData.image = user.image
+            } else if ((profile as any)?.picture) {
+              userData.image = (profile as any).picture
+            }
+            
+            await adminDb.collection("users").doc(user.email).set(userData)
           } else {
             // Check if user is active before allowing sign in
             const userData = userDoc.data()
@@ -108,7 +111,8 @@ export const authOptions: NextAuthOptions = {
         } catch (error) {
           console.error("Error handling sign in:", error)
           return false
-        }      }
+        }      
+      }
       return true
     },
   },
