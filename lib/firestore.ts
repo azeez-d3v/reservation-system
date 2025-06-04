@@ -983,8 +983,7 @@ export async function getAvailableTimeSlots(
         }
       })
     })
-    
-    // Update slot availability based on precise occupancy calculations
+      // Update slot availability based on precise occupancy calculations
     allTimeSlots.forEach(slot => {
       const occupancyData = timeSlotOccupancy[slot.time]
       const occupancy = occupancyData?.count || 0
@@ -993,21 +992,26 @@ export async function getAvailableTimeSlots(
       slot.occupancy = occupancy
       slot.conflicts = conflicts
       
-      // Determine availability status based on system settings
+      // Determine availability status based on system settings with explicit logic
       if (occupancy === 0) {
+        // No reservations - completely available
         slot.status = "available"
         slot.available = true
-      } else if (!systemSettings.allowOverlapping) {
-        // If overlapping is not allowed and there's any occupancy, it's unavailable
+      } else if (!systemSettings.allowOverlapping && occupancy > 0) {
+        // Overlapping not allowed and has reservations - unavailable
         slot.status = "unavailable"
         slot.available = false
-      } else if (occupancy < maxCapacity) {
-        // If overlapping is allowed and under capacity, it's limited
+      } else if (systemSettings.allowOverlapping && occupancy < maxCapacity) {
+        // Overlapping allowed and under capacity - limited availability
         slot.status = "limited"
         slot.available = true
-      } else {
-        // If at or over capacity, it's full/unavailable
+      } else if (systemSettings.allowOverlapping && occupancy >= maxCapacity) {
+        // At or over maximum capacity - full/unavailable
         slot.status = "full"
+        slot.available = false
+      } else {
+        // Fallback case - mark as unavailable
+        slot.status = "unavailable"
         slot.available = false
       }
     })

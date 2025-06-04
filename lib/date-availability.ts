@@ -54,7 +54,6 @@ export function getDateAvailability(
   
   // Treat "full" status as "unavailable" since all slots are occupied
   const finalAvailability = backendAvailability === "full" ? "unavailable" : backendAvailability
-  
   // Log for debugging
   // console.log(`Date: ${dateString}, Day: ${dayName} (${dayOfWeek}), Backend: ${backendAvailability}, Final: ${finalAvailability}, BusinessHours: ${daySchedule?.enabled}`)
   

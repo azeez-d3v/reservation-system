@@ -967,9 +967,19 @@ export async function getPublicAvailability(startDate: Date, endDate: Date, incl
       const limitedSlots = slots.filter(slot => slot.status === "limited")
       const fullSlots = slots.filter(slot => slot.status === "full" || slot.status === "unavailable")
       const totalSlots = slots.length
-      
       // DEBUG: Log slot details for debugging
       // console.log(`[DEBUG] Date: ${dateKey}, Total: ${totalSlots}, Available: ${availableSlots.length}, Limited: ${limitedSlots.length}, Full: ${fullSlots.length}`)
+      
+      // Log individual slot details for problematic dates (June 4-6, 2025)
+      // if (dateKey === "2025-06-04" || dateKey === "2025-06-05" || dateKey === "2025-06-06") {
+      //   console.log(`[DEBUG] Slots for ${dateKey}:`, slots.map(slot => ({
+      //     time: slot.time,
+      //     status: slot.status,
+      //     available: slot.available,
+      //     occupancy: slot.occupancy,
+      //     capacity: slot.capacity
+      //   })))
+      // }
       
       // Determine date availability based on slot statuses
       if (availableSlots.length === totalSlots) {
