@@ -161,10 +161,13 @@ async function validateDate(
       return
     }
   }
-  
-  // Check if date is a blackout date
+    // Check if date is a blackout date - use consistent timezone formatting
   const isBlackoutDate = timeSlotSettings.blackoutDates.some(
-    bd => bd.date.toDateString() === date.toDateString()
+    bd => {
+      const blackoutDateInPhilippines = new Date(bd.date.toLocaleString("en-US", {timeZone: "Asia/Manila"}))
+      const checkDateInPhilippines = new Date(date.toLocaleString("en-US", {timeZone: "Asia/Manila"}))
+      return blackoutDateInPhilippines.toDateString() === checkDateInPhilippines.toDateString()
+    }
   )
   
   if (isBlackoutDate) {

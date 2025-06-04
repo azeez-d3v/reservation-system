@@ -397,10 +397,14 @@ export async function getReservationById(reservationId: string): Promise<Reserva
 
 export async function getReservationsForDate(date: Date): Promise<Reservation[]> {
   try {
-    const startOfDay = new Date(date)
+    // Create date boundaries using Philippine timezone to ensure consistency
+    // across different server environments (localhost vs deployed)
+    const dateInPhilippines = new Date(date.toLocaleString("en-US", {timeZone: "Asia/Manila"}))
+    
+    const startOfDay = new Date(dateInPhilippines)
     startOfDay.setHours(0, 0, 0, 0)
     
-    const endOfDay = new Date(date)
+    const endOfDay = new Date(dateInPhilippines)
     endOfDay.setHours(23, 59, 59, 999)
 
     const q = query(
@@ -907,17 +911,20 @@ export async function getAvailableTimeSlots(
   try {
     const [systemSettings, timeSlotSettings] = await Promise.all([
       getSystemSettings(),
-      getTimeSlotSettings()
-    ])
+      getTimeSlotSettings()    ])
     
-    // Check if date is a blackout date
+    // Check if date is a blackout date - use consistent timezone formatting
     const isBlackoutDate = timeSlotSettings.blackoutDates.some(
-      bd => bd.date.toDateString() === date.toDateString()
+      bd => {
+        const blackoutDateInPhilippines = new Date(bd.date.toLocaleString("en-US", {timeZone: "Asia/Manila"}))
+        const checkDateInPhilippines = new Date(date.toLocaleString("en-US", {timeZone: "Asia/Manila"}))
+        return blackoutDateInPhilippines.toDateString() === checkDateInPhilippines.toDateString()
+      }
     )
     
     if (isBlackoutDate) {
       return []
-    }    // Get day schedule
+    }// Get day schedule
     const dayOfWeek = date.getDay()
     const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
     const daySchedule = timeSlotSettings.businessHours[dayNames[dayOfWeek]]
@@ -1376,10 +1383,13 @@ export async function getEnhancedTimeSlotAvailability(
         systemSettings
       }
     }
-    
-    // Check if date is a blackout date
+      // Check if date is a blackout date - use consistent timezone formatting
     const isBlackoutDate = timeSlotSettings.blackoutDates.some(
-      bd => bd.date.toDateString() === date.toDateString()
+      bd => {
+        const blackoutDateInPhilippines = new Date(bd.date.toLocaleString("en-US", {timeZone: "Asia/Manila"}))
+        const checkDateInPhilippines = new Date(date.toLocaleString("en-US", {timeZone: "Asia/Manila"}))
+        return blackoutDateInPhilippines.toDateString() === checkDateInPhilippines.toDateString()
+      }
     )
     
     if (isBlackoutDate) {

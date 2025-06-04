@@ -38,13 +38,13 @@ export function getDateAvailability(
     // Get current time in Philippine timezone (UTC+8)
     const now = new Date()
     const philippineTime = new Date(now.toLocaleString("en-US", {timeZone: "Asia/Manila"}))
-    const currentTimeMinutes = philippineTime.getHours() * 60 + philippineTime.getMinutes()
-    
-    // Also check if the date we're checking is actually today in Philippine timezone
-    const todayInPhilippines = new Date().toLocaleDateString("en-CA", {timeZone: "Asia/Manila"}) // YYYY-MM-DD format
+    const currentTimeMinutes = philippineTime.getHours() * 60 + philippineTime.getMinutes()    // Also check if the date we're checking is actually today in Philippine timezone
+    // Convert Philippine time to YYYY-MM-DD format to match dateString format
+    const todayInPhilippines = new Date().toLocaleString("en-US", {timeZone: "Asia/Manila"}).split(',')[0] // Get date part
+    const todayFormatted = new Date(todayInPhilippines).toISOString().split('T')[0] // Convert to YYYY-MM-DD format
     
     // Only apply time-based availability check if it's actually today in Philippine timezone
-    if (dateString === todayInPhilippines) {
+    if (dateString === todayFormatted) {
       // Find the end time for today's single time slot
       const endTimeMinutes = timeToMinutes(daySchedule.timeSlot.end)
       
