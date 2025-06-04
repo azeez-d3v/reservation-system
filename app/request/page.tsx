@@ -52,7 +52,7 @@ export default function RequestPage() {
     const fetchSystemSettings = async () => {
       try {
         const settings = await getSettings()
-        setSystemSettings(settings)
+        setSystemSettings(settings)      
       } catch (error) {
         console.error("Failed to fetch system settings:", error)
         // Use default settings if fetch fails
@@ -64,7 +64,9 @@ export default function RequestPage() {
           maxOverlappingReservations: 2,
           reservationTypes: ["event", "training", "gym", "other"],
           use12HourFormat: true,
-          minAdvanceBookingDays: 0
+          minAdvanceBookingDays: 0,
+          restrictEmailDomain: true,
+          allowedEmailDomain: "@leadersics.edu.ph"
         })
       }
     }
