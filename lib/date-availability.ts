@@ -33,19 +33,25 @@ export function getDateAvailability(
     // console.log(`Day ${dayName} (${dayOfWeek}) is disabled in business hours`)
     return "unavailable"
   }
-  
-  // Check if this is today - if so, compare current time with latest available time slot
+    // Check if this is today - if so, compare current time with latest available time slot using Philippine timezone
   if (isToday(date)) {
+    // Get current time in Philippine timezone (UTC+8)
     const now = new Date()
-    const currentTimeMinutes = now.getHours() * 60 + now.getMinutes()
+    const philippineTime = new Date(now.toLocaleString("en-US", {timeZone: "Asia/Manila"}))
+    const currentTimeMinutes = philippineTime.getHours() * 60 + philippineTime.getMinutes()
     
-    // Find the end time for today's single time slot
-    const endTimeMinutes = timeToMinutes(daySchedule.timeSlot.end)
+    // Also check if the date we're checking is actually today in Philippine timezone
+    const todayInPhilippines = new Date().toLocaleDateString("en-CA", {timeZone: "Asia/Manila"}) // YYYY-MM-DD format
     
-    // If current time has passed the available time slot, mark as unavailable
-    if (currentTimeMinutes >= endTimeMinutes) {
-      // console.log(`Date ${dateString} is unavailable - current time (${now.getHours()}:${now.getMinutes().toString().padStart(2, "0")}) has passed time slot end (${Math.floor(endTimeMinutes / 60)}:${(endTimeMinutes % 60).toString().padStart(2, "0")})`)
-      return "unavailable"
+    // Only apply time-based availability check if it's actually today in Philippine timezone
+    if (dateString === todayInPhilippines) {
+      // Find the end time for today's single time slot
+      const endTimeMinutes = timeToMinutes(daySchedule.timeSlot.end)
+      
+      // If current time has passed the available time slot, mark as unavailable
+      if (currentTimeMinutes >= endTimeMinutes) {
+        return "unavailable"
+      }
     }
   }
     // Then check the availability map from the backend
