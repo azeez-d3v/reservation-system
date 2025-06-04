@@ -66,6 +66,8 @@ export interface SystemSettings {
   reservationTypes: string[]
   use12HourFormat: boolean
   minAdvanceBookingDays?: number
+  restrictEmailDomain: boolean
+  allowedEmailDomain: string
 }
 
 export interface EmailSettings {

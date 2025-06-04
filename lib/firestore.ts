@@ -1115,7 +1115,9 @@ export function getDefaultSystemSettings(): SystemSettings {
     maxOverlappingReservations: 2,
     reservationTypes: ["event", "training", "gym", "other"],
     use12HourFormat: true,
-    minAdvanceBookingDays: 0
+    minAdvanceBookingDays: 0,
+    restrictEmailDomain: true,
+    allowedEmailDomain: "@leadersics.edu.ph"
   }
 }
 

@@ -60,17 +60,29 @@ export const authOptions: NextAuthOptions = {
         session.user.status = token.status as string
       }
       return session
-    },    
-    async signIn({ user, account, profile }) {
+    },      async signIn({ user, account, profile }) {
       if (account?.provider === "google" && user.email) {
-        // Check if email has the required domain - use user.email as fallback
-        const emailToCheck = user.email || profile?.email
-        if (!emailToCheck?.endsWith("@leadersics.edu.ph")) {
-          console.log(`Sign in denied for email: ${emailToCheck} - Invalid domain`)
-          return false
-        }
+        try {
+          // Get system settings to check email domain restrictions
+          const systemSettingsDoc = await adminDb.collection("systemSettings").doc("main").get()
+          let restrictEmailDomain = true // Default to true for backwards compatibility
+          let allowedEmailDomain = "@leadersics.edu.ph" // Default domain
+          
+          if (systemSettingsDoc.exists) {
+            const systemSettings = systemSettingsDoc.data()
+            restrictEmailDomain = systemSettings?.restrictEmailDomain !== false // Default to true if not specified
+            allowedEmailDomain = systemSettings?.allowedEmailDomain || "@leadersics.edu.ph"
+          }
 
-        try {          
+          // Check email domain if restriction is enabled
+          if (restrictEmailDomain) {
+            const emailToCheck = user.email || profile?.email
+            if (!emailToCheck?.endsWith(allowedEmailDomain)) {
+              console.log(`Sign in denied for email: ${emailToCheck} - Invalid domain. Required: ${allowedEmailDomain}`)
+              return false
+            }
+          }
+
           // Ensure the user document exists in our custom collection
           const userDoc = await adminDb.collection("users").doc(user.email).get()
           if (!userDoc.exists) {

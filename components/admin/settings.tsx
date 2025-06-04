@@ -701,8 +701,7 @@ export function AdminSettings() {
                   checked={systemSettings.allowOverlapping}
                   onCheckedChange={(checked) => setSystemSettings({ ...systemSettings, allowOverlapping: checked })}
                 />
-              </div>
-
+              </div>              
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label htmlFor="use12HourFormat">Use 12-hour Time Format</Label>
@@ -714,7 +713,38 @@ export function AdminSettings() {
                   id="use12HourFormat"
                   checked={systemSettings.use12HourFormat !== false} // Default to true if not specified
                   onCheckedChange={(checked) => setSystemSettings({ ...systemSettings, use12HourFormat: checked })}
-                />              </div>              
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="restrictEmailDomain">Restrict Email Domain</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Only allow users with specific email domain to sign in
+                  </p>
+                </div>
+                <Switch
+                  id="restrictEmailDomain"
+                  checked={systemSettings.restrictEmailDomain !== false} // Default to true if not specified
+                  onCheckedChange={(checked) => setSystemSettings({ ...systemSettings, restrictEmailDomain: checked })}
+                />
+              </div>
+
+              {systemSettings.restrictEmailDomain && (
+                <div className="space-y-2 ml-4 p-4 bg-muted/50 rounded-lg border">
+                  <Label htmlFor="allowedEmailDomain">Allowed Email Domain</Label>
+                  <Input
+                    id="allowedEmailDomain"
+                    type="text"
+                    value={systemSettings.allowedEmailDomain || "@leadersics.edu.ph"}
+                    onChange={(e) => setSystemSettings({ ...systemSettings, allowedEmailDomain: e.target.value })}
+                    placeholder="@example.com"
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    Email domain that users must have to sign in (include the @ symbol)
+                  </p>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="maxConcurrentReservations">Maximum Concurrent Reservations</Label>
                 <Input

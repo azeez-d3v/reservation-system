@@ -18,7 +18,7 @@ import { getDateAvailability } from "@/lib/date-availability"
 import { getTimeSlots } from "@/lib/actions"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
-import { ChevronRight, ChevronLeft, Star } from "lucide-react"
+import { ChevronRight, ChevronLeft, Star, Check } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 
@@ -255,7 +255,8 @@ export function ReservationDatePicker({ selectedDate, onDateSelected, minBookabl
                 <div key={day} className="text-center font-medium py-2">
                   {day}
                 </div>
-              ))}              {/* Calendar days */}
+              ))}              
+              {/* Calendar days */}
               {allDays.map((day) => {                
                 const isCurrentMonth = isSameMonth(day, currentMonth)                
                 const isSelected = selectedDateState ? isSameDay(day, selectedDateState) : false

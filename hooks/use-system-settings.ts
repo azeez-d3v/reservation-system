@@ -18,8 +18,7 @@ export function useSystemSettings() {
         setError(null)
       } catch (err) {
         console.error("Failed to fetch system settings:", err)
-        setError("Failed to load system settings")
-        // Set fallback values
+        setError("Failed to load system settings")        // Set fallback values
         setSystemSettings({
           systemName: "Reservation System",
           contactEmail: "admin@example.com",
@@ -28,7 +27,9 @@ export function useSystemSettings() {
           maxOverlappingReservations: 2,
           reservationTypes: ["event", "training", "gym", "other"],
           use12HourFormat: true,
-          minAdvanceBookingDays: 0
+          minAdvanceBookingDays: 0,
+          restrictEmailDomain: true,
+          allowedEmailDomain: "@leadersics.edu.ph"
         })
       } finally {
         setIsLoading(false)

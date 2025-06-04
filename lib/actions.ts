@@ -71,8 +71,7 @@ export async function getNotificationSettings() {
           cancellation: "Dear {name},\n\nYour reservation has been cancelled.\n\nDate: {date}\nTime: {startTime} - {endTime}\nPurpose: {purpose}\n\nIf you have any questions about this cancellation, please contact us.\n\nThank you for using our reservation system!"
         }
       }
-    }
-      try {
+    }    try {
       systemSettings = await getSettings()
     } catch (systemError) {
       console.error("Failed to get system settings, using defaults:", systemError)
@@ -84,7 +83,9 @@ export async function getNotificationSettings() {
         maxOverlappingReservations: 2,
         reservationTypes: ["event", "training", "gym", "other"],
         use12HourFormat: true,
-        minAdvanceBookingDays: 0
+        minAdvanceBookingDays: 0,
+        restrictEmailDomain: true,
+        allowedEmailDomain: "@leadersics.edu.ph"
       }
     }
     
@@ -520,18 +521,19 @@ export async function getSettings(): Promise<SystemSettings> {
     } else {
       // Return default settings if document doesn't exist
       const { getDefaultSystemSettings } = await import("./firestore")
-      return getDefaultSystemSettings()
-    }  } catch (error) {
-    console.error("Error fetching system settings:", error)    // Return default settings if fetch fails
+      return getDefaultSystemSettings()    }  } catch (error) {
+    console.error("Error fetching system settings:", error)
+    // Return default settings if fetch fails
     return {
-            systemName: "Reservation System",
+      systemName: "Reservation System",
       contactEmail: "admin@example.com",
-      requireApproval: true,
-      allowOverlapping: true,
+      requireApproval: true,      allowOverlapping: true,
       maxOverlappingReservations: 2,
       reservationTypes: ["event", "training", "gym", "other"],
       use12HourFormat: true,
-      minAdvanceBookingDays: 0
+      minAdvanceBookingDays: 0,
+      restrictEmailDomain: true,
+      allowedEmailDomain: "@leadersics.edu.ph"
     }
   }
 }
