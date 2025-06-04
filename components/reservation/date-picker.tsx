@@ -93,12 +93,7 @@ export function ReservationDatePicker({ selectedDate, onDateSelected, minBookabl
         
         if (!result.success) {
           throw new Error(result.error || 'Failed to fetch availability')
-        }
-        
-        // console.log("Date picker - Availability response:", result.data)
-        // console.log("Date picker - Available dates:", result.data.availableDates)
-        // console.log("Date picker - Availability map:", result.data.availabilityMap)
-        
+        }        
         setAvailabilityMap(result.data.availabilityMap || {})
       } catch (error) {
         if (!abortController.signal.aborted) {
@@ -210,7 +205,8 @@ export function ReservationDatePicker({ selectedDate, onDateSelected, minBookabl
   return (
     <Card className="w-full">
       <CardHeader>
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">          <div>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">          
+          <div>
             <CardTitle>Select a Date</CardTitle>
             <CardDescription>
               Choose a date for your reservation. Color indicates availability.
@@ -269,16 +265,6 @@ export function ReservationDatePicker({ selectedDate, onDateSelected, minBookabl
                 const isTooFarInFuture = maxBookableDate ? day > maxBookableDate : false
                 const isBookable = !isPast && !isTooFarInFuture && availability !== "unavailable" && isCurrentMonth
                 const isEarliestAvailable = earliestAvailableDate ? isSameDay(day, earliestAvailableDate) : false
-                
-                // Debug log for today's date to verify same-day booking
-                // if (isToday) {
-                //   console.log(`Date picker - Today ${format(day, "yyyy-MM-dd")}: isPast=${isPast}, availability=${availability}, isBookable=${isBookable}, minBookableDate=${minBookableDate ? format(minBookableDate, "yyyy-MM-dd HH:mm:ss") : 'null'}`)
-                // }
-
-                // Debug log for problematic dates (Friday and Saturday)
-                // if (isCurrentMonth && (day.getDay() === 5 || day.getDay() === 6)) {
-                //   console.log(`Date picker - Day ${format(day, "yyyy-MM-dd")} (${day.getDay() === 5 ? 'Friday' : 'Saturday'}): availability=${availability}, isBookable=${isBookable}`)
-                // }
 
                 // Determine the tooltip message
                 let tooltipMessage = ""

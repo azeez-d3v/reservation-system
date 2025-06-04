@@ -48,14 +48,11 @@ export function getDateAvailability(
       return "unavailable"
     }
   }
-  
-  // Then check the availability map from the backend
+    // Then check the availability map from the backend
   const backendAvailability = availabilityMap[dateString] as "available" | "limited" | "full" | "unavailable"
   
   // Treat "full" status as "unavailable" since all slots are occupied
   const finalAvailability = backendAvailability === "full" ? "unavailable" : backendAvailability
-  // Log for debugging
-  // console.log(`Date: ${dateString}, Day: ${dayName} (${dayOfWeek}), Backend: ${backendAvailability}, Final: ${finalAvailability}, BusinessHours: ${daySchedule?.enabled}`)
-  
+    // Return the final availability status, defaulting to unavailable if undefined
   return (finalAvailability as "available" | "limited" | "unavailable") || "unavailable"
 }
