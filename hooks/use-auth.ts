@@ -4,7 +4,7 @@ import { useCallback } from "react"
 import { useSession, signIn, signOut } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/components/ui/use-toast"
-import { getUsers, updateUserStatus as updateUserStatusFirestore, updateUser as updateUserFirestore, updateUserRole as updateUserRoleFirestore } from "@/lib/firestore"
+import { getUserList, updateUserStatus, updateUserRoleAction, removeUser } from "@/lib/actions"
 import type { User } from "@/lib/types"
 
 export function useAuth() {
@@ -44,10 +44,9 @@ export function useAuth() {
       })
     }
   }
-
   const getAllUsers = useCallback(async (): Promise<User[]> => {
     try {
-      return await getUsers()
+      return await getUserList()
     } catch (error) {
       console.error("Error fetching users:", error)
       toast({
@@ -57,20 +56,29 @@ export function useAuth() {
       return []
     }
   }, [toast])
-
-  const updateUserStatus = useCallback(async (userId: string, status: "active" | "inactive") => {
+  const updateUserStatusAction = useCallback(async (userEmail: string, status: "active" | "inactive") => {
     try {
-      await updateUserStatusFirestore(userId, status)
+      const result = await updateUserStatus(userEmail, status)
 
-      toast({
-        title: "User updated",
-        description: `User status has been updated to ${status}.`,
-      })
+      if (result.success) {
+        toast({
+          title: "User updated",
+          description: `User status has been updated to ${status}.`,
+        })
+      } else {
+        toast({
+          title: "Update failed", 
+          description: result.message,
+          variant: "destructive",
+        })
+      }
 
       // If the current user is being deactivated, log them out
-      if (user?.email === userId && status === "inactive") {
+      if (user?.email === userEmail && status === "inactive") {
         await logout()
       }
+      
+      return result
     } catch (error) {
       console.error("Error updating user status:", error)
       toast({
@@ -78,33 +86,28 @@ export function useAuth() {
         description: "Failed to update user status.",
         variant: "destructive",
       })
+      return { success: false, message: "Failed to update user status" }
     }
   }, [user?.email, logout, toast])
-  const updateUser = useCallback(async (userData: Partial<User> & { id: string }) => {
-    try {
-      await updateUserFirestore(userData.id, userData)
-      
-      toast({
-        title: "User updated",
-        description: "User information has been updated successfully.",
-      })
-    } catch (error) {
-      console.error("Error updating user:", error)
-      toast({
-        title: "Update failed",
-        description: "Failed to update user information.",
-        variant: "destructive",
-      })
-    }
-  }, [toast])
+
   const updateUserRole = useCallback(async (userId: string, role: "admin" | "staff" | "user") => {
     try {
-      await updateUserRoleFirestore(userId, role)
+      const result = await updateUserRoleAction(userId, role)
 
-      toast({
-        title: "User role updated",
-        description: `User role has been updated to ${role}.`,
-      })
+      if (result.success) {
+        toast({
+          title: "User role updated",
+          description: `User role has been updated to ${role}.`,
+        })
+      } else {
+        toast({
+          title: "Update failed",
+          description: result.message,
+          variant: "destructive",
+        })
+      }
+      
+      return result
     } catch (error) {
       console.error("Error updating user role:", error)
       toast({
@@ -112,9 +115,38 @@ export function useAuth() {
         description: "Failed to update user role.",
         variant: "destructive",
       })
+      return { success: false, message: "Failed to update user role" }
     }
   }, [toast])
 
+  const deleteUser = useCallback(async (userId: string, userEmail?: string, userName?: string) => {
+    try {
+      const result = await removeUser(userId, userEmail, true) // Use comprehensive cleanup
+      
+      if (result.success) {
+        toast({
+          title: "User deleted",
+          description: `${userName || 'User'} and all associated data have been permanently deleted.`,
+        })
+      } else {
+        toast({
+          title: "Deletion failed",
+          description: result.message,
+          variant: "destructive",
+        })
+      }
+      
+      return result
+    } catch (error) {
+      console.error("Error deleting user:", error)
+      toast({
+        title: "Deletion failed",
+        description: "Failed to delete user and associated data.",
+        variant: "destructive",
+      })
+      return { success: false, message: "Failed to delete user" }
+    }
+  }, [toast])
   return {
     user,
     isLoading,
@@ -122,8 +154,8 @@ export function useAuth() {
     login,
     logout,
     getAllUsers,
-    updateUserStatus,
-    updateUser,
+    updateUserStatus: updateUserStatusAction,
     updateUserRole,
+    deleteUser,
   }
 }

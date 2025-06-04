@@ -1193,12 +1193,48 @@ export async function getUsers(): Promise<User[]> {
 
 export async function deleteUser(userId: string): Promise<void> {
   try {
-    await deleteDoc(doc(db, USERS_COLLECTION, userId))
+    // Use batch operations for atomic deletion
+    const batch = writeBatch(db)
+    
+    // 1. Get user details first for logging and cleanup
+    const userRef = doc(db, USERS_COLLECTION, userId)
+    const userSnap = await getDoc(userRef)
+    
+    if (!userSnap.exists()) {
+      throw new Error("User not found")
+    }
+    
+    const userData = userSnap.data() as User
+    console.log(`Starting deletion for user: ${userData.email} (ID: ${userId})`)
+    
+    // 2. Delete all user's reservations
+    const reservationsQuery = query(
+      collection(db, RESERVATIONS_COLLECTION),
+      where("userId", "==", userId)
+    )
+    const reservationsSnapshot = await getDocs(reservationsQuery)
+    
+    console.log(`Found ${reservationsSnapshot.size} reservations to delete for user ${userData.email}`)
+    
+    reservationsSnapshot.docs.forEach((reservationDoc) => {
+      batch.delete(reservationDoc.ref)
+    })
+    
+    // 3. Delete the user document
+    batch.delete(userRef)
+    
+    // Commit the batch operation
+    await batch.commit()
+    
+    console.log(`Successfully deleted user ${userData.email} and all associated data`)
+    
   } catch (error) {
-    console.error("Error deleting user:", error)
-    throw new Error("Failed to delete user")
+    console.error("Error deleting user and associated data:", error)
+    throw new Error(`Failed to delete user: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
 }
+
+// Note: Admin-level cleanup is now handled in server actions to avoid client-side imports
 
 export async function getStatistics(): Promise<any> {
   try {

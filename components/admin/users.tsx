@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Search, UserX, UserCheck, Settings } from "lucide-react"
+import { Search, UserX, UserCheck, Settings, Trash2 } from "lucide-react"
 import { format } from "date-fns"
 import {
   AlertDialog,
@@ -31,7 +31,7 @@ import { canChangeUserRoles, getRoleBadgeVariant, getRoleDisplayName, canManageU
 import type { User } from "@/lib/types"
 
 export function AdminUsers() {
-  const { getAllUsers, updateUserStatus, updateUserRole, user: currentUser } = useAuth()
+  const { getAllUsers, updateUserStatus, updateUserRole, deleteUser, user: currentUser } = useAuth()
   const { data: session } = useSession()
   const { toast } = useToast()
   const [searchTerm, setSearchTerm] = useState("")
@@ -39,6 +39,8 @@ export function AdminUsers() {
   const [showDisableDialog, setShowDisableDialog] = useState(false)
   const [showEnableDialog, setShowEnableDialog] = useState(false)
   const [showRoleDialog, setShowRoleDialog] = useState(false)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [deleteConfirmation, setDeleteConfirmation] = useState("")
   const [newRole, setNewRole] = useState<UserRole>("user")
   const [users, setUsers] = useState<User[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -102,6 +104,11 @@ export function AdminUsers() {
     setNewRole(user.role as UserRole) // Start with current role
     setShowRoleDialog(true)
   }
+  const handleDeleteUser = (user: User) => {
+    setSelectedUser(user)
+    setDeleteConfirmation("") // Reset confirmation input
+    setShowDeleteDialog(true)
+  }
 
   const confirmDisableUser = async () => {
     if (selectedUser) {
@@ -139,6 +146,28 @@ export function AdminUsers() {
         console.error("Failed to update user role:", error)
       }
       setShowRoleDialog(false)
+    }
+  }
+  const confirmDeleteUser = async () => {
+    if (selectedUser) {
+      try {
+        const result = await deleteUser(selectedUser.id, selectedUser.email, selectedUser.name)
+        if (result.success) {
+          // Refresh users list
+          await refreshUsers()
+        }
+      } catch (error) {
+        console.error("Failed to delete user:", error)
+      }
+      setShowDeleteDialog(false)
+      setDeleteConfirmation("") // Reset confirmation input
+    }
+  }
+
+  const handleDeleteDialogChange = (open: boolean) => {
+    setShowDeleteDialog(open)
+    if (!open) {
+      setDeleteConfirmation("") // Reset confirmation when dialog closes
     }
   }
 
@@ -227,8 +256,7 @@ export function AdminUsers() {
                     >
                       <Settings className="mr-2 h-4 w-4" />
                       Change Role
-                    </Button>
-                  )}
+                    </Button>                  )}
                   {user.status === "active" ? (
                     <Button
                       variant="outline"
@@ -250,6 +278,15 @@ export function AdminUsers() {
                       Enable
                     </Button>
                   )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-red-600 hover:bg-red-50 hover:border-red-200 dark:hover:bg-red-950"
+                    onClick={() => handleDeleteUser(user)}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete
+                  </Button>
                 </div>
               )}
             </div>
@@ -397,6 +434,74 @@ export function AdminUsers() {
               disabled={!selectedUser || newRole === selectedUser.role}
             >
               Update Role
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>      {/* Delete User Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={handleDeleteDialogChange}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete User</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div>
+                <div className="space-y-3">
+                  <div className="bg-destructive/10 border border-destructive/20 rounded-md p-3">
+                    <div className="flex items-center gap-2 text-destructive mb-2">
+                      <Trash2 className="h-4 w-4" />
+                      <span className="font-semibold">Permanent Deletion</span>
+                    </div>
+                    <p className="text-sm text-destructive/80">
+                      This action cannot be undone. This will permanently delete the user and all associated data including:
+                    </p>
+                    <ul className="text-sm text-destructive/80 mt-2 ml-4 space-y-1">
+                      <li>• User account and profile information</li>
+                      <li>• All reservation history (approved, pending, rejected, cancelled)</li>
+                      <li>• Authentication data and sessions</li>
+                      <li>• Any other associated system data</li>
+                    </ul>
+                  </div>
+                  
+                  {selectedUser && (
+                    <div className="p-3 border rounded-md bg-muted/50">
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src={selectedUser.image} alt={selectedUser.name} />
+                          <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
+                            {selectedUser.name.charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <div className="font-medium">{selectedUser.name}</div>
+                          <div className="text-sm text-muted-foreground">{selectedUser.email}</div>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            Role: {getRoleDisplayName(selectedUser.role as UserRole)} • 
+                            Joined {format(new Date(selectedUser.createdAt), "MMM d, yyyy")}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  <p className="text-sm text-muted-foreground">
+                    Please type <span className="font-mono bg-muted px-1 rounded">DELETE</span> to confirm:
+                  </p>
+                  <Input
+                    placeholder="Type DELETE to confirm"
+                    onChange={(e) => setDeleteConfirmation(e.target.value)}
+                  />
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteUser}
+              disabled={deleteConfirmation !== "DELETE"}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete User Permanently
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

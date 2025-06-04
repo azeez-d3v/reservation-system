@@ -17,7 +17,8 @@ import {
   deleteReservation,
   getUsers,
   createUser,
-  updateUserStatus,
+  updateUserStatus as updateUserStatusFirestore,
+  updateUserRole as updateUserRoleFirestore,
   deleteUser,
   getStatistics,
   getAvailableTimeSlots,
@@ -25,6 +26,7 @@ import {
   getEnhancedTimeSlotAvailability,
   validateTimeSlotForReservation
 } from "./firestore"
+import { deleteUserWithAuthCleanup } from "./admin-delete"
 import { 
   validateReservationRequest, 
   checkTimeSlotAvailability,
@@ -717,7 +719,7 @@ export async function getEmailConfiguration(): Promise<EmailSettings> {
           rejection: "Dear {name},\n\nWe regret to inform you that your reservation request for {date} from {startTime} to {endTime} has been rejected.\n\nPurpose: {purpose}\n\nPlease contact us if you have any questions.",
           notification: "New reservation request:\n\nName: {name}\nEmail: {email}\nDate: {date}\nTime: {startTime} - {endTime}\nPurpose: {purpose}\nAttendees: {attendees}",
           submission: "Dear {name},\n\nThank you for submitting your reservation request. Your request has been received and is now pending approval.\n\nDate: {date}\nTime: {startTime} - {endTime}\nPurpose: {purpose}\nAttendees: {attendees}\n\nYou will receive an email notification once your request is approved or if any changes are needed.\n\nThank you for using our reservation system!",
-          cancellation: "Dear {name},\n\nYour reservation has been cancelled.\n\nDate: {date}\nTime: {startTime} - {endTime}\nPurpose: {purpose}\n\nIf you have any questions about this cancellation, please contact us.\n\nThank you for using our reservation system.",
+          cancellation: "Dear {name},\n\nYour reservation has been cancelled.\n\nDate: {date}\nTime: {startTime} - {endTime}\nPurpose: {purpose}\n\nIf you have any questions about this cancellation, please contact us.\n\nThank you for using our reservation system!",
         },
         createdAt: new Date(),
         updatedAt: new Date()
@@ -798,20 +800,20 @@ export async function addUser(userData: Omit<User, "id" | "createdAt" | "updated
   }
 }
 
-export async function updateUser(id: string, status: "active" | "inactive") {
+export async function updateUserStatus(userEmail: string, status: "active" | "inactive") {
   try {
-    await updateUserStatus(id, status)
+    await updateUserStatusFirestore(userEmail, status)
     revalidatePath("/admin")
-    return { success: true, message: "User updated successfully" }
+    return { success: true, message: "User status updated successfully" }
   } catch (error) {
-    console.error("Error updating user:", error)
-    return { success: false, message: "Failed to update user" }
+    console.error("Error updating user status:", error)
+    return { success: false, message: "Failed to update user status" }
   }
 }
 
-export async function updateUserRole(email: string, role: "admin" | "staff" | "user") {
+export async function updateUserRoleAction(userId: string, role: "admin" | "staff" | "user") {
   try {
-    await setUserRole(email, role)
+    await updateUserRoleFirestore(userId, role)
     revalidatePath("/admin")
     return { success: true, message: "User role updated successfully" }
   } catch (error) {
@@ -820,12 +822,29 @@ export async function updateUserRole(email: string, role: "admin" | "staff" | "u
   }
 }
 
-export async function getUserRoleData(email: string) {
+export async function removeUser(userId: string, userEmail?: string, comprehensiveCleanup: boolean = true) {
   try {
-    return await getUserRole(email)
+    if (comprehensiveCleanup && userEmail) {
+      // Perform comprehensive deletion including NextAuth data
+      await deleteUserWithAuthCleanup(userId, userEmail)
+    } else {
+      // Standard deletion (user and reservations only)
+      await deleteUser(userId)
+    }
+    
+    revalidatePath("/admin")
+    return { 
+      success: true, 
+      message: comprehensiveCleanup 
+        ? "User and all associated data deleted successfully" 
+        : "User deleted successfully" 
+    }
   } catch (error) {
-    console.error("Error fetching user role:", error)
-    return { exists: false }
+    console.error("Error deleting user:", error)
+    return { 
+      success: false, 
+      message: `Failed to delete user: ${error instanceof Error ? error.message : 'Unknown error'}` 
+    }
   }
 }
 
