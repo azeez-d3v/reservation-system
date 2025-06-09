@@ -29,3 +29,5 @@ next-env.d.ts
 .github
 
 firestore.rules
+
+/app/api/debug/*

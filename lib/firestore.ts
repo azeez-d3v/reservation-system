@@ -399,15 +399,20 @@ export async function getReservationById(reservationId: string): Promise<Reserva
 
 export async function getReservationsForDate(date: Date): Promise<Reservation[]> {
   try {
-    // Create date boundaries using Philippine timezone to ensure consistency
-    // across different server environments (localhost vs deployed)
-    const dateInPhilippines = new Date(date.toLocaleString("en-US", {timeZone: "Asia/Manila"}))
+    // DEBUG: Log the input date
+    console.log(`DEBUG getReservationsForDate: Input date = ${date.toISOString()}, Local date = ${date.toString()}`)
     
-    const startOfDay = new Date(dateInPhilippines)
-    startOfDay.setHours(0, 0, 0, 0)
+    // Create date boundaries for the specific date in UTC
+    // This ensures we get reservations that match the exact date regardless of timezone
+    const year = date.getUTCFullYear()
+    const month = date.getUTCMonth()
+    const day = date.getUTCDate()
     
-    const endOfDay = new Date(dateInPhilippines)
-    endOfDay.setHours(23, 59, 59, 999)
+    const startOfDay = new Date(Date.UTC(year, month, day, 0, 0, 0, 0))
+    const endOfDay = new Date(Date.UTC(year, month, day, 23, 59, 59, 999))
+
+    // DEBUG: Log the query boundaries
+    console.log(`DEBUG getReservationsForDate: Query range = ${startOfDay.toISOString()} to ${endOfDay.toISOString()}`)
 
     const q = query(
       collection(db, RESERVATIONS_COLLECTION),
