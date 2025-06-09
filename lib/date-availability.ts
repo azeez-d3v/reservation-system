@@ -25,10 +25,13 @@ export function getDateAvailability(
   if (!date || isNaN(date.getTime()) || !timeSlotSettings?.businessHours) return "unavailable"
   
   const timeZone = "Asia/Manila";
-  // Ensure we get a consistent date string format regardless of local timezone
-  const dateString = format(new Date(date.getFullYear(), date.getMonth(), date.getDate()), "yyyy-MM-dd")
   
-  const dayOfWeek = date.getDay() // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+  // Convert the input date to Manila timezone to ensure consistent date string format
+  const dateInManila = toZonedTime(date, timeZone);
+  const dateString = formatTz(dateInManila, "yyyy-MM-dd", { timeZone });
+  
+  // Use Manila timezone date for day of week calculation
+  const dayOfWeek = dateInManila.getDay() // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
   const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
   const dayName = dayNames[dayOfWeek]
     // First check if the day is enabled in business hours
