@@ -16,6 +16,7 @@ import {
   runTransaction,
   Transaction
 } from "firebase/firestore"
+import { format } from "date-fns"
 import { db } from "./firebase"
 import type { 
   Reservation, 
@@ -1298,11 +1299,10 @@ export async function getAlternativeDates(
     // Start checking from the day after the requested date
     const checkDate = new Date(requestedDate)
     checkDate.setDate(checkDate.getDate() + 1)
-    
-    // Get any blackout dates
+      // Get any blackout dates
     const blackoutDates = await getBlackoutDates()
     const blackoutDatesSet = new Set(
-      blackoutDates.map(bd => new Date(bd.date).toISOString().split('T')[0])
+      blackoutDates.map(bd => format(new Date(bd.date), "yyyy-MM-dd"))
     )
     
     // Loop through days to check
@@ -1310,8 +1310,8 @@ export async function getAlternativeDates(
       const currentDate = new Date(checkDate)
       currentDate.setDate(currentDate.getDate() + i)
       
-      // Skip blackout dates
-      const currentDateString = currentDate.toISOString().split('T')[0]
+      // Skip blackout dates - use consistent date formatting
+      const currentDateString = format(currentDate, "yyyy-MM-dd")
       if (blackoutDatesSet.has(currentDateString)) {
         continue
       }

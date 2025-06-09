@@ -161,12 +161,24 @@ async function validateDate(
       return
     }
   }
-    // Check if date is a blackout date - use consistent timezone formatting
+  // Check if date is a blackout date - use consistent timezone formatting
   const isBlackoutDate = timeSlotSettings.blackoutDates.some(
     bd => {
-      const blackoutDateInPhilippines = new Date(bd.date.toLocaleString("en-US", {timeZone: "Asia/Manila"}))
-      const checkDateInPhilippines = new Date(date.toLocaleString("en-US", {timeZone: "Asia/Manila"}))
-      return blackoutDateInPhilippines.toDateString() === checkDateInPhilippines.toDateString()
+      // Create date objects with year, month, day only to avoid timezone issues
+      const blackoutDate = new Date(bd.date);
+      const blackoutDateOnly = new Date(
+        blackoutDate.getFullYear(),
+        blackoutDate.getMonth(),
+        blackoutDate.getDate()
+      );
+      
+      const checkDateOnly = new Date(
+        date.getFullYear(),
+        date.getMonth(),
+        date.getDate()
+      );
+      
+      return blackoutDateOnly.getTime() === checkDateOnly.getTime();
     }
   )
   
