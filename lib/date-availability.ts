@@ -1,4 +1,5 @@
-import { format, isToday } from "date-fns"
+import { format } from "date-fns"
+import { toZonedTime, format as formatTz } from "date-fns-tz";
 
 /**
  * Convert time string to minutes since midnight
@@ -23,8 +24,8 @@ export function getDateAvailability(
   // Enhanced null checks for robustness
   if (!date || isNaN(date.getTime()) || !timeSlotSettings?.businessHours) return "unavailable"
   
+  const timeZone = "Asia/Manila";
   // Ensure we get a consistent date string format regardless of local timezone
-  // Use UTC to avoid any timezone conversion issues when generating the date string
   const dateString = format(new Date(date.getFullYear(), date.getMonth(), date.getDate()), "yyyy-MM-dd")
   
   const dayOfWeek = date.getDay() // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
@@ -33,29 +34,27 @@ export function getDateAvailability(
     // First check if the day is enabled in business hours
   const daySchedule = timeSlotSettings.businessHours[dayName]
   if (!daySchedule?.enabled || !daySchedule.timeSlot) {
-    // console.log(`Day ${dayName} (${dayOfWeek}) is disabled in business hours`)
     return "unavailable"
   }
-  // Check if this is today - if so, compare current time with latest available time slot using Philippine timezone
-  if (isToday(date)) {
-    // Get current time in Philippine timezone (UTC+8)
-    const now = new Date()
-    const philippineTime = new Date(now.toLocaleString("en-US", {timeZone: "Asia/Manila"}))
-    const currentTimeMinutes = philippineTime.getHours() * 60 + philippineTime.getMinutes()
+
+  // Determine if the 'date' being checked is "today" in Manila timezone
+  const now = new Date(); // Current moment
+  const todayInManilaDateString = formatTz(toZonedTime(now, timeZone), "yyyy-MM-dd", { timeZone });
+
+  if (dateString === todayInManilaDateString) {
+    // This is "today" in Manila. Apply time-based checks.
+    const nowInManila = toZonedTime(now, timeZone);
+    const currentTimeMinutes = nowInManila.getHours() * 60 + nowInManila.getMinutes();
     
-    // Get today's date in Philippine timezone in yyyy-MM-dd format
-    const todayInPhilippines = new Date(now.toLocaleString("en-US", {timeZone: "Asia/Manila"}))
-    const todayFormatted = format(todayInPhilippines, "yyyy-MM-dd")
-    
-    // Only apply time-based availability check if it's actually today in Philippine timezone
-    if (dateString === todayFormatted) {
-      // Find the end time for today's single time slot
-      const endTimeMinutes = timeToMinutes(daySchedule.timeSlot.end)
-      
-      // If current time has passed the available time slot, mark as unavailable
+    const currentDaySchedule = timeSlotSettings.businessHours[dayName];
+
+    if (currentDaySchedule?.enabled && currentDaySchedule.timeSlot) {
+      const endTimeMinutes = timeToMinutes(currentDaySchedule.timeSlot.end);
       if (currentTimeMinutes >= endTimeMinutes) {
-        return "unavailable"
+        return "unavailable";
       }
+    } else {
+      return "unavailable";
     }
   }
   // Then check the availability map from the backend
