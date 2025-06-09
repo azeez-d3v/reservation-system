@@ -1,6 +1,7 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { format } from "date-fns";
+import { toZonedTime, format as formatTz } from "date-fns-tz";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -16,8 +17,10 @@ export function formatTime12Hour(time: string): string {
 
 /**
  * Convert a Date object to a timezone-safe date string in yyyy-MM-dd format
- * This avoids timezone conversion issues that can occur with toISOString()
+ * Uses consistent Asia/Manila timezone to ensure all date operations align
  */
 export function formatDateKey(date: Date): string {
-  return format(new Date(date.getFullYear(), date.getMonth(), date.getDate()), "yyyy-MM-dd");
+  const timeZone = "Asia/Manila";
+  const dateInManila = toZonedTime(date, timeZone);
+  return formatTz(dateInManila, "yyyy-MM-dd", { timeZone });
 }

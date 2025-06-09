@@ -1,5 +1,6 @@
 "use server"
 
+import { toZonedTime, format as formatTz } from "date-fns-tz"
 import { getReservationsForDate, getSystemSettings, getTimeSlotSettings, validateTimeSlotForReservation } from "./firestore"
 import { Reservation, ReservationRequest, SystemSettings, TimeSlotSettings } from "./types"
 
@@ -186,9 +187,9 @@ async function validateDate(
     errors.push("Selected date is not available for reservations")
     return
   }
-
-  // Check if date falls on an enabled day
-  const dayOfWeek = date.getDay()
+  // Check if date falls on an enabled day using Philippine timezone
+  const dateInManila = toZonedTime(date, "Asia/Manila")
+  const dayOfWeek = dateInManila.getDay()
   const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
   const daySchedule = timeSlotSettings.businessHours[dayNames[dayOfWeek]]
     if (!daySchedule || !daySchedule.enabled) {
@@ -265,12 +266,13 @@ function validateTimeSlots(
   
   // Check if end time is after start time
   if (endMinutes <= startMinutes) {
-    errors.push("End time must be after start time")
+  errors.push("End time must be after start time")
     return
   }
   
-  // Get day schedule
-  const dayOfWeek = date.getDay()
+  // Get day schedule using Philippine timezone
+  const dateInManila = toZonedTime(date, "Asia/Manila")
+  const dayOfWeek = dateInManila.getDay()
   const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
   const daySchedule = timeSlotSettings.businessHours[dayNames[dayOfWeek]]
   
@@ -360,12 +362,12 @@ export async function validateTimeSlotForDate(
   try {
     const [systemSettings, timeSlotSettings, existingReservations] = await Promise.all([
       getSystemSettings(),
-      getTimeSlotSettings(),
-      getReservationsForDate(date)
+      getTimeSlotSettings(),    getReservationsForDate(date)
     ])
     
-    // Get day schedule
-    const dayOfWeek = date.getDay()
+    // Get day schedule using Philippine timezone
+    const dateInManila = toZonedTime(date, "Asia/Manila")
+    const dayOfWeek = dateInManila.getDay()
     const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
     const daySchedule = timeSlotSettings.businessHours[dayNames[dayOfWeek]]
     

@@ -17,6 +17,7 @@ import {
   Transaction
 } from "firebase/firestore"
 import { format } from "date-fns"
+import { toZonedTime, format as formatTz } from "date-fns-tz"
 import { formatDateKey } from "./utils"
 import { db } from "./firebase"
 import type { 
@@ -146,9 +147,9 @@ async function validateReservationAvailability(data: ReservationRequest): Promis
         errors.push(`Reservations must be made at least ${minAdvanceBookingDays} ${dayText} in advance`)
       }
     }
-    
-    // Check if date is enabled for reservations
-    const dayOfWeek = data.date.getDay()
+      // Check if date is enabled for reservations using Philippine timezone
+    const dateInManila = toZonedTime(data.date, "Asia/Manila")
+    const dayOfWeek = dateInManila.getDay()
     const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
     const daySchedule = timeSlotSettings.businessHours[dayNames[dayOfWeek]]
     
@@ -917,24 +918,24 @@ export async function getUserStats(userId: string): Promise<any> {
 export async function getAvailableTimeSlots(
   date: Date,
 ): Promise<{ time: string; available: boolean; status: string; occupancy?: number; capacity?: number; conflicts?: Reservation[] }[]> {
-  try {
-    const [systemSettings, timeSlotSettings] = await Promise.all([
+  try {    const [systemSettings, timeSlotSettings] = await Promise.all([
       getSystemSettings(),
       getTimeSlotSettings()    ])
     
     // Check if date is a blackout date - use consistent timezone formatting
     const isBlackoutDate = timeSlotSettings.blackoutDates.some(
       bd => {
-        const blackoutDateInPhilippines = new Date(bd.date.toLocaleString("en-US", {timeZone: "Asia/Manila"}))
-        const checkDateInPhilippines = new Date(date.toLocaleString("en-US", {timeZone: "Asia/Manila"}))
-        return blackoutDateInPhilippines.toDateString() === checkDateInPhilippines.toDateString()
+        const blackoutDateInPhilippines = toZonedTime(new Date(bd.date), "Asia/Manila")
+        const checkDateInPhilippines = toZonedTime(date, "Asia/Manila")
+        return formatTz(blackoutDateInPhilippines, "yyyy-MM-dd", { timeZone: "Asia/Manila" }) === 
+               formatTz(checkDateInPhilippines, "yyyy-MM-dd", { timeZone: "Asia/Manila" })
       }
     )
     
     if (isBlackoutDate) {
-      return []
-    }// Get day schedule
-    const dayOfWeek = date.getDay()
+      return []    }// Get day schedule using Philippine timezone
+    const dateInManila = toZonedTime(date, "Asia/Manila")
+    const dayOfWeek = dateInManila.getDay()
     const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
     const daySchedule = timeSlotSettings.businessHours[dayNames[dayOfWeek]]
     
@@ -1322,9 +1323,9 @@ export async function getAlternativeDates(
       if (blackoutDatesSet.has(currentDateString)) {
         continue
       }
-      
-      // Skip non-operational days based on settings
-      const dayOfWeek = currentDate.getDay()
+        // Skip non-operational days based on settings using Philippine timezone
+      const currentDateInManila = toZonedTime(currentDate, "Asia/Manila")
+      const dayOfWeek = currentDateInManila.getDay()
       const dayName = dayNames[dayOfWeek]
       
       // If we have time slot settings, check if this day is operational
@@ -1411,9 +1412,9 @@ export async function getEnhancedTimeSlotAvailability(
       getTimeSlotSettings(),
       getReservationsForDate(date)
     ])
-    
-    // Check if date is enabled for reservations
-    const dayOfWeek = date.getDay()
+      // Check if date is enabled for reservations using Philippine timezone
+    const dateInManila = toZonedTime(date, "Asia/Manila")
+    const dayOfWeek = dateInManila.getDay()
     const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
     const daySchedule = timeSlotSettings.businessHours[dayNames[dayOfWeek]]
     
@@ -1426,13 +1427,13 @@ export async function getEnhancedTimeSlotAvailability(
         partiallyBookedSlots: 0,
         systemSettings
       }
-    }
-      // Check if date is a blackout date - use consistent timezone formatting
+    }    // Check if date is a blackout date - use consistent timezone formatting
     const isBlackoutDate = timeSlotSettings.blackoutDates.some(
       bd => {
-        const blackoutDateInPhilippines = new Date(bd.date.toLocaleString("en-US", {timeZone: "Asia/Manila"}))
-        const checkDateInPhilippines = new Date(date.toLocaleString("en-US", {timeZone: "Asia/Manila"}))
-        return blackoutDateInPhilippines.toDateString() === checkDateInPhilippines.toDateString()
+        const blackoutDateInPhilippines = toZonedTime(new Date(bd.date), "Asia/Manila")
+        const checkDateInPhilippines = toZonedTime(date, "Asia/Manila")
+        return formatTz(blackoutDateInPhilippines, "yyyy-MM-dd", { timeZone: "Asia/Manila" }) === 
+               formatTz(checkDateInPhilippines, "yyyy-MM-dd", { timeZone: "Asia/Manila" })
       }
     )
     
@@ -1579,9 +1580,9 @@ export async function validateTimeSlotForReservation(
     if (endMinutes <= startMinutes) {
       errors.push("End time must be after start time")
     }
-    
-    // Check operational hours
-    const dayOfWeek = date.getDay()
+      // Check operational hours using Philippine timezone
+    const dateInManila = toZonedTime(date, "Asia/Manila")
+    const dayOfWeek = dateInManila.getDay()
     const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
     const daySchedule = timeSlotSettings.businessHours[dayNames[dayOfWeek]]
     
