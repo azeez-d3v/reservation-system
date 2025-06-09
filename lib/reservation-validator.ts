@@ -374,9 +374,9 @@ export async function validateTimeSlotForDate(
           const reservationStartMinutes = timeToMinutes(reservation.startTime)
           const reservationEndMinutes = timeToMinutes(reservation.endTime)
           
-          // Include slots that are within the reservation period OR are the exact end time boundary
-          return (minutes >= reservationStartMinutes && minutes < reservationEndMinutes) ||
-                 (minutes === reservationEndMinutes)
+          // Only include slots that are WITHIN the reservation period (not the end boundary)
+          // This follows the convention that a reservation from 08:00-12:00 occupies slots 08:00, 08:30, 09:00, ..., 11:30 but NOT 12:00
+          return (minutes >= reservationStartMinutes && minutes < reservationEndMinutes)
         })
         
         const occupancy = conflictingReservations.length

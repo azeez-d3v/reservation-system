@@ -977,11 +977,10 @@ export async function getAvailableTimeSlots(
       
       allTimeSlots.forEach(slot => {
         const slotMinutes = timeToMinutes(slot.time)
-        
-        // Check if this time slot overlaps with the reservation
-        // Include slots that are within the reservation period OR are the exact end time boundary
-        if ((slotMinutes >= startMinutes && slotMinutes < endMinutes) ||
-            (slotMinutes === endMinutes)) {
+          // Check if this time slot overlaps with the reservation
+        // Only include slots that are WITHIN the reservation period (not the end boundary)
+        // This follows the convention that a reservation from 08:00-12:00 occupies slots 08:00, 08:30, 09:00, ..., 11:30 but NOT 12:00
+        if (slotMinutes >= startMinutes && slotMinutes < endMinutes) {
           if (!timeSlotOccupancy[slot.time]) {
             timeSlotOccupancy[slot.time] = { count: 0, reservations: [] }
           }
@@ -1469,11 +1468,10 @@ export async function getEnhancedTimeSlotAvailability(
           
           const reservationStartMinutes = timeToMinutes(reservation.startTime)
           const reservationEndMinutes = timeToMinutes(reservation.endTime)
-          
-          // Check if this time slot overlaps with the reservation
-          // Include slots that are within the reservation period OR are the exact end time boundary
-          return (minutes >= reservationStartMinutes && minutes < reservationEndMinutes) ||
-                 (minutes === reservationEndMinutes)
+            // Check if this time slot overlaps with the reservation
+          // Only include slots that are WITHIN the reservation period (not the end boundary)
+          // This follows the convention that a reservation from 08:00-12:00 occupies slots 08:00, 08:30, 09:00, ..., 11:30 but NOT 12:00
+          return (minutes >= reservationStartMinutes && minutes < reservationEndMinutes)
         })
         
         const occupancy = conflictingReservations.length
