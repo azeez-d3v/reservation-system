@@ -1,5 +1,6 @@
 "use client"
 
+import { formatDateKey } from "@/lib/utils"
 import { useState, useEffect, useRef } from "react"
 import { format, addMinutes, parse, differenceInMinutes } from "date-fns"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -384,15 +385,14 @@ export function ReservationTimeSlots({
   }, [selectedStartTime, selectedEndTime, selectedDate, systemSettings?.allowOverlapping])  // Check if all slots are unavailable and fetch alternatives
   useEffect(() => {
     const checkAvailabilityAndFetchAlternatives = async () => {
-      if (timeSlots.length === 0) return
-
+      if (timeSlots.length === 0) return      
       const allSlotsUnavailable = timeSlots.every(slot => 
         slot.status === "full" || slot.status === "unavailable" || !slot.available
       )
-
+      
       if (allSlotsUnavailable && selectedStartTime && !isLoadingAlternatives) {
         // Create a unique key for this request
-        const requestKey = `${selectedDate.toISOString().split('T')[0]}-${selectedStartTime}-${selectedEndTime || "18:00"}`
+        const requestKey = `${formatDateKey(selectedDate)}-${selectedStartTime}-${selectedEndTime || "18:00"}`
         
         // Skip if this is the same request as the last one
         if (lastAlternativesRequestRef.current === requestKey) {
@@ -402,10 +402,9 @@ export function ReservationTimeSlots({
         lastAlternativesRequestRef.current = requestKey
         setIsLoadingAlternatives(true)
         setShowAlternatives(true)
-        
-        try {
+          try {
           const result = await fetchAlternativeDates(
-            selectedDate.toISOString().split('T')[0],
+            formatDateKey(selectedDate),
             selectedStartTime,
             selectedEndTime || "18:00", // Default end time
             5

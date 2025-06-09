@@ -1,5 +1,6 @@
 "use client"
 
+import { formatDateKey } from "@/lib/utils"
 import { useState, useEffect } from "react"
 import {
   format,
@@ -67,11 +68,9 @@ export function ReservationDatePicker({ selectedDate, onDateSelected, minBookabl
         // Start a timeout to track slow requests
         const timeoutId = setTimeout(() => {
           console.log("Date availability fetch is taking longer than expected");
-        }, 2000);
-
-        // Use the API route instead of direct server action
+        }, 2000);        // Use the API route instead of direct server action
         const response = await fetch(
-          `/api/availability?startDate=${firstDay.toISOString().split('T')[0]}&endDate=${lastDay.toISOString().split('T')[0]}&includeAvailabilityMap=true`,
+          `/api/availability?startDate=${formatDateKey(firstDay)}&endDate=${formatDateKey(lastDay)}&includeAvailabilityMap=true`,
           {
             signal: abortController.signal,
             headers: {

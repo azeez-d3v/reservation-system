@@ -20,7 +20,7 @@ import {
 import { ChevronLeft, ChevronRight, Clock, Info, CalendarIcon, Users, AlertCircle, Star } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { cn } from "@/lib/utils"
+import { cn, formatDateKey } from "@/lib/utils"
 import { getDateAvailability } from "@/lib/date-availability"
 import { getSystemSettings, getEnhancedAvailability, getTimeSlots } from "@/lib/actions"
 import { TimeSlotGrid } from "@/components/calendar/time-slot-grid"
@@ -270,10 +270,9 @@ export default function HomePage() {
         try {
         const startDate = startOfMonth(currentMonth)
         const endDate = endOfMonth(currentMonth)
-        
-        // Use the API route instead of direct server action
+          // Use the API route instead of direct server action
         const response = await fetch(
-          `/api/availability?startDate=${startDate.toISOString().split('T')[0]}&endDate=${endDate.toISOString().split('T')[0]}&includeAvailabilityMap=true`,
+          `/api/availability?startDate=${formatDateKey(startDate)}&endDate=${formatDateKey(endDate)}&includeAvailabilityMap=true`,
           {
             signal: abortController.signal,
             headers: {

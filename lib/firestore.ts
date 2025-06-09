@@ -17,6 +17,7 @@ import {
   Transaction
 } from "firebase/firestore"
 import { format } from "date-fns"
+import { formatDateKey } from "./utils"
 import { db } from "./firebase"
 import type { 
   Reservation, 
@@ -1058,9 +1059,8 @@ export async function getDetailedAvailability(
     const maxCapacity = systemSettings.maxOverlappingReservations || 2
     const result: any = {}
     const current = new Date(startDate)
-    
-    while (current <= endDate) {
-      const dateKey = current.toISOString().split('T')[0]
+      while (current <= endDate) {
+      const dateKey = formatDateKey(current)
       const timeSlots = await getAvailableTimeSlots(current)
       
       const totalSlots = timeSlots.length

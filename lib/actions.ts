@@ -1,6 +1,7 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
+import { formatDateKey } from "./utils"
 import type { 
   Reservation, 
   ReservationRequest, 
@@ -24,7 +25,10 @@ import {
   getAvailableTimeSlots,
   getAlternativeDates,
   getEnhancedTimeSlotAvailability,
-  validateTimeSlotForReservation
+  validateTimeSlotForReservation,
+  getSystemSettings as getSystemSettingsFromFirestore,
+  getTimeSlotSettings as getTimeSlotSettingsFromFirestore,
+  getEmailSettings as getEmailSettingsFromFirestore
 } from "./firestore"
 import { deleteUserWithAuthCleanup } from "./admin-delete"
 import { 
@@ -44,13 +48,13 @@ import {
 import { setUserRole, getUserRole } from "./admin-utils"
 
 // Helper function to get email and system settings consistently
-export async function getNotificationSettings() {
-  try {
+export async function getNotificationSettings() {  try {
     const [emailSettings, systemSettings] = await Promise.all([
       getEmailConfiguration(),
       getSettings()
     ])
-    return { emailSettings, systemSettings }  } catch (error) {
+    return { emailSettings, systemSettings }
+  } catch (error) {
     console.error("Error fetching notification settings:", error)
     // Return safe defaults if settings can't be fetched
     // IMPORTANT: Try to get individual settings instead of failing completely
@@ -70,10 +74,11 @@ export async function getNotificationSettings() {
           rejection: "Dear {name},\n\nWe regret to inform you that your reservation request for {date} from {startTime} to {endTime} has been rejected.\n\nPurpose: {purpose}\n\nPlease contact us if you have any questions.",
           notification: "New reservation request:\n\nName: {name}\nEmail: {email}\nDate: {date}\nTime: {startTime} - {endTime}\nPurpose: {purpose}\nAttendees: {attendees}",
           submission: "Dear {name},\n\nThank you for submitting your reservation request. Your request has been received and is now pending approval.\n\nDate: {date}\nTime: {startTime} - {endTime}\nPurpose: {purpose}\nAttendees: {attendees}\n\nYou will receive an email notification once your request is approved or if any changes are needed.\n\nThank you for using our reservation system!",
-          cancellation: "Dear {name},\n\nYour reservation has been cancelled.\n\nDate: {date}\nTime: {startTime} - {endTime}\nPurpose: {purpose}\n\nIf you have any questions about this cancellation, please contact us.\n\nThank you for using our reservation system!"
-        }
+          cancellation: "Dear {name},\n\nYour reservation has been cancelled.\n\nDate: {date}\nTime: {startTime} - {endTime}\nPurpose: {purpose}\n\nIf you have any questions about this cancellation, please contact us.\n\nThank you for using our reservation system!"        }
       }
-    }    try {
+    }
+    
+    try {
       systemSettings = await getSettings()
     } catch (systemError) {
       console.error("Failed to get system settings, using defaults:", systemError)
@@ -898,52 +903,45 @@ export async function checkAvailability(date: Date, startTime: string, endTime: 
 
 // Public availability function for date picker
 export async function getPublicAvailability(startDate: Date, endDate: Date, includeAvailabilityMap: boolean = true) {
-  try {    // If startDate and endDate are the same, return time slots for that specific date
+  try {
+    // If startDate and endDate are the same, return time slots for that specific date
     if (startDate.toDateString() === endDate.toDateString()) {
-      try {
-        const timeSlots = await getAvailableSlots(startDate)
-        const dateKey = startDate.toISOString().split('T')[0]
-        const availabilityMap: Record<string, string> = {}
-        const availableDates: string[] = []
+      const timeSlots = await getAvailableSlots(startDate)
+      const dateKey = formatDateKey(startDate)
+      const availabilityMap: Record<string, string> = {}
+      const availableDates: string[] = []
+      
+      // If no slots are available (e.g., day is disabled), mark as unavailable
+      if (timeSlots.length === 0) {
+        availabilityMap[dateKey] = "unavailable"
+      } else {
+        const availableSlots = timeSlots.filter(slot => slot.status === "available")
+        const limitedSlots = timeSlots.filter(slot => slot.status === "limited")
+        const fullSlots = timeSlots.filter(slot => slot.status === "full" || slot.status === "unavailable")
+        const totalSlots = timeSlots.length
         
-        // If no slots are available (e.g., day is disabled), mark as unavailable
-        if (timeSlots.length === 0) {
+        // Determine date availability based on slot statuses
+        if (availableSlots.length === totalSlots) {
+          // All slots are available
+          availabilityMap[dateKey] = "available"
+          availableDates.push(dateKey)
+        } else if (fullSlots.length === totalSlots || (availableSlots.length === 0 && limitedSlots.length === 0)) {
+          // All slots are full/unavailable OR no available/limited slots
           availabilityMap[dateKey] = "unavailable"
-        } else {          const availableSlots = timeSlots.filter(slot => slot.status === "available")
-          const limitedSlots = timeSlots.filter(slot => slot.status === "limited")
-          const fullSlots = timeSlots.filter(slot => slot.status === "full" || slot.status === "unavailable")
-          const totalSlots = timeSlots.length
-          
-          // Determine date availability based on slot statuses
-          if (availableSlots.length === totalSlots) {
-            // All slots are available
-            availabilityMap[dateKey] = "available"
-            availableDates.push(dateKey)
-          } else if (fullSlots.length === totalSlots || (availableSlots.length === 0 && limitedSlots.length === 0)) {
-            // All slots are full/unavailable OR no available/limited slots
-            availabilityMap[dateKey] = "unavailable"
-          } else if (availableSlots.length > 0 || limitedSlots.length > 0) {
-            // Mix of available, limited, and/or full slots (some slots still bookable)
-            availabilityMap[dateKey] = "limited"
-            availableDates.push(dateKey)
-          } else {
-            // Fallback - mark as unavailable
-            availabilityMap[dateKey] = "unavailable"
-          }
+        } else if (availableSlots.length > 0 || limitedSlots.length > 0) {
+          // Mix of available, limited, and/or full slots (some slots still bookable)
+          availabilityMap[dateKey] = "limited"
+          availableDates.push(dateKey)
+        } else {
+          // Fallback - mark as unavailable
+          availabilityMap[dateKey] = "unavailable"
         }
-        
-        return {
-          timeSlots,
-          availabilityMap,
-          availableDates
-        }
-      } catch (error) {
-        console.error("Error fetching time slots for date:", error)
-        return {
-          timeSlots: [],
-          availabilityMap: {},
-          availableDates: []
-        }
+      }
+      
+      return {
+        timeSlots,
+        availabilityMap,
+        availableDates
       }
     }
 
@@ -971,20 +969,23 @@ export async function getPublicAvailability(startDate: Date, endDate: Date, incl
       }
     })
 
-    const results = await Promise.all(slotsPromises)    // Process results
+    const results = await Promise.all(slotsPromises)
+    
+    // Process results
     for (const { date, slots, error } of results) {
-      const dateKey = date.toISOString().split('T')[0]
+      const dateKey = formatDateKey(date)
       
       if (error) {
         availabilityMap[dateKey] = "unavailable"
-        continue
-      }
+        continue      }
 
       // If no slots are available (e.g., day is disabled), mark as unavailable
       if (slots.length === 0) {
         availabilityMap[dateKey] = "unavailable"
         continue
-      }      const availableSlots = slots.filter(slot => slot.status === "available")
+      }
+      
+      const availableSlots = slots.filter(slot => slot.status === "available")
       const limitedSlots = slots.filter(slot => slot.status === "limited")
       const fullSlots = slots.filter(slot => slot.status === "full" || slot.status === "unavailable")
       const totalSlots = slots.length
@@ -1148,9 +1149,8 @@ export async function fetchAlternativeDates(
       
       // Create a nice display format
       const displayDate = relative ? `${relative} (${dayOfWeek})` : `${dayOfWeek}, ${formattedDate}`
-      
-      return {
-        date: date.toISOString().split('T')[0],
+        return {
+        date: formatDateKey(date),
         displayDate,
         dayOfWeek,
         relative,
