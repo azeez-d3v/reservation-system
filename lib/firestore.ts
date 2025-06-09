@@ -402,22 +402,24 @@ export async function getReservationsForDate(date: Date): Promise<Reservation[]>
     // DEBUG: Log the input date
     console.log(`DEBUG getReservationsForDate: Input date = ${date.toISOString()}, Local date = ${date.toString()}`)
     
-    // Create date boundaries for the specific date in UTC
-    // This ensures we get reservations that match the exact date regardless of timezone
-    const year = date.getUTCFullYear()
-    const month = date.getUTCMonth()
-    const day = date.getUTCDate()
+    // Convert input date to Philippine timezone to get the correct date boundaries
+    // This ensures we query for reservations that belong to the date in Philippine time
+    const philippineTimeString = date.toLocaleDateString("en-CA", { timeZone: "Asia/Manila" }) // YYYY-MM-DD format
+    const [year, month, day] = philippineTimeString.split('-').map(Number)
     
-    const startOfDay = new Date(Date.UTC(year, month, day, 0, 0, 0, 0))
-    const endOfDay = new Date(Date.UTC(year, month, day, 23, 59, 59, 999))
+    // Create Philippine timezone date boundaries
+    // Start of day in Philippine time (convert to UTC for Firestore query)
+    const startOfDayPH = new Date(`${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}T00:00:00.000+08:00`)
+    const endOfDayPH = new Date(`${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}T23:59:59.999+08:00`)
 
     // DEBUG: Log the query boundaries
-    console.log(`DEBUG getReservationsForDate: Query range = ${startOfDay.toISOString()} to ${endOfDay.toISOString()}`)
+    console.log(`DEBUG getReservationsForDate: Philippine date = ${philippineTimeString}`)
+    console.log(`DEBUG getReservationsForDate: Query range = ${startOfDayPH.toISOString()} to ${endOfDayPH.toISOString()}`)
 
     const q = query(
       collection(db, RESERVATIONS_COLLECTION),
-      where("date", ">=", Timestamp.fromDate(startOfDay)),
-      where("date", "<=", Timestamp.fromDate(endOfDay)),
+      where("date", ">=", Timestamp.fromDate(startOfDayPH)),
+      where("date", "<=", Timestamp.fromDate(endOfDayPH)),
       where("status", "==", "approved")
     )
     
