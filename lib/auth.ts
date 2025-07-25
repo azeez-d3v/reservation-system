@@ -60,25 +60,32 @@ export const authOptions: NextAuthOptions = {
         session.user.status = token.status as string
       }
       return session
-    },      async signIn({ user, account, profile }) {
+    },      
+    async signIn({ user, account, profile }) {
       if (account?.provider === "google" && user.email) {
         try {
-          // Get system settings to check email domain restrictions
-          const systemSettingsDoc = await adminDb.collection("systemSettings").doc("main").get()
-          let restrictEmailDomain = true // Default to true for backwards compatibility
-          let allowedEmailDomain = "@leadersics.edu.ph" // Default domain
+          // Hardcoded allowed emails
+          const allowedEmails = [
+            "aziz.saricula@gmail.com"
+          ]
           
-          if (systemSettingsDoc.exists) {
-            const systemSettings = systemSettingsDoc.data()
-            restrictEmailDomain = systemSettings?.restrictEmailDomain !== false // Default to true if not specified
-            allowedEmailDomain = systemSettings?.allowedEmailDomain || "@leadersics.edu.ph"
-          }
+          const emailToCheck = user.email || profile?.email
+          
+          // If email is in allowed list, skip domain check
+          if (!allowedEmails.includes(emailToCheck || "")) {
+            // Only check domain restriction for non-allowed emails
+            const systemSettingsDoc = await adminDb.collection("systemSettings").doc("main").get()
+            let restrictEmailDomain = true
+            let allowedEmailDomain = "@leadersics.edu.ph"
+            
+            if (systemSettingsDoc.exists) {
+              const systemSettings = systemSettingsDoc.data()
+              restrictEmailDomain = systemSettings?.restrictEmailDomain !== false
+              allowedEmailDomain = systemSettings?.allowedEmailDomain || "@leadersics.edu.ph"
+            }
 
-          // Check email domain if restriction is enabled
-          if (restrictEmailDomain) {
-            const emailToCheck = user.email || profile?.email
-            if (!emailToCheck?.endsWith(allowedEmailDomain)) {
-              console.log(`Sign in denied for email: ${emailToCheck} - Invalid domain. Required: ${allowedEmailDomain}`)
+            if (restrictEmailDomain && !emailToCheck?.endsWith(allowedEmailDomain)) {
+              console.log(`Sign in denied for email: ${emailToCheck} - Invalid domain`)
               return false
             }
           }
