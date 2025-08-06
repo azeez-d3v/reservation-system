@@ -13,125 +13,172 @@ export const authOptions: NextAuthOptions = {
   ],
   session: {
     strategy: "jwt" as const,
-  },  secret: process.env.NEXTAUTH_SECRET,  callbacks: {
-    async jwt({ token, user }) {
-      // Add role and status to token for middleware to access
-      if (user && user.email) {
-        // Ensure email is in the token for Firestore rules
-        token.email = user.email
+  },
+  secret: process.env.NEXTAUTH_SECRET,
+  callbacks: {
+    async jwt({ token, user, account }) {
+      // Only fetch user data on initial sign in or when user object exists
+      if (user?.email || (account && token.email)) {
+        const email = user?.email || token.email as string
         
-        // Fetch user data from our custom collection to get role and status
         try {
-          console.log("JWT Callback - Fetching user data for:", user.email)
-          const userDoc = await adminDb.collection("users").doc(user.email).get()
+          console.log("JWT Callback - Fetching user data for:", email)
+          const userDoc = await adminDb.collection("users").doc(email).get()
+          
           if (userDoc.exists) {
             const userData = userDoc.data()
+            token.email = email
             token.role = userData?.role || "user"
             token.status = userData?.status || "active"
             console.log("JWT Callback - User data found:", { 
-              email: user.email, 
+              email, 
               role: token.role, 
-              status: token.status,
-              userData: userData 
+              status: token.status 
             })
           } else {
+            // Set defaults if user document doesn't exist
+            token.email = email
             token.role = "user"
             token.status = "active"
-            console.log("JWT Callback - No user document found for:", user.email)
+            console.log("JWT Callback - No user document found for:", email)
           }
         } catch (error) {
           console.error("Error fetching user data for JWT:", error)
+          token.email = email
           token.role = "user"
           token.status = "active"
         }
-      } else {
-        // Preserve existing token data if no user (refresh scenario)
-        console.log("JWT Callback - Preserving token data:", {
-          email: token.email,
-          role: token.role,
-          status: token.status        })
       }
-      return token},
+      
+      // Always return the token to maintain session
+      return token
+    },
+
     async session({ session, token }) {
       if (session.user && token) {
-        session.user.id = token.email as string // Use email as ID to match Firestore document structure
+        session.user.id = token.email as string
         session.user.email = token.email as string
-        session.user.role = token.role as string
-        session.user.status = token.status as string
+        session.user.role = (token.role as string) || "user"
+        session.user.status = (token.status as string) || "active"
       }
       return session
     },      
+    
     async signIn({ user, account, profile }) {
-      if (account?.provider === "google" && user.email) {
+      if (account?.provider === "google") {
         try {
-          // Hardcoded allowed emails
+          // Get email from multiple possible sources
+          const email = user.email || profile?.email || (profile as any)?.email_verified
+          
+          if (!email) {
+            console.log("Sign in denied - No email found in user or profile")
+            return false
+          }
+
+          console.log("Processing sign in for email:", email)
+
+          // Hardcoded allowed emails (bypass domain check)
           const allowedEmails = [
             "aziz.saricula@gmail.com"
           ]
           
-          const emailToCheck = user.email || profile?.email
-          
           // If email is in allowed list, skip domain check
-          if (!allowedEmails.includes(emailToCheck || "")) {
-            // Only check domain restriction for non-allowed emails
-            const systemSettingsDoc = await adminDb.collection("systemSettings").doc("main").get()
+          if (allowedEmails.includes(email)) {
+            console.log("Email in allowed list, bypassing domain check:", email)
+          } else {
+            // Check domain restriction for non-allowed emails
             let restrictEmailDomain = true
             let allowedEmailDomain = "@leadersics.edu.ph"
             
-            if (systemSettingsDoc.exists) {
-              const systemSettings = systemSettingsDoc.data()
-              restrictEmailDomain = systemSettings?.restrictEmailDomain !== false
-              allowedEmailDomain = systemSettings?.allowedEmailDomain || "@leadersics.edu.ph"
+            try {
+              const systemSettingsDoc = await adminDb.collection("systemSettings").doc("main").get()
+              if (systemSettingsDoc.exists) {
+                const systemSettings = systemSettingsDoc.data()
+                restrictEmailDomain = systemSettings?.restrictEmailDomain !== false
+                allowedEmailDomain = systemSettings?.allowedEmailDomain || "@leadersics.edu.ph"
+              }
+            } catch (error) {
+              console.error("Error fetching system settings:", error)
+              // Use defaults if system settings fetch fails
             }
 
-            if (restrictEmailDomain && !emailToCheck?.endsWith(allowedEmailDomain)) {
-              console.log(`Sign in denied for email: ${emailToCheck} - Invalid domain`)
+            // Normalize email and domain for comparison
+            const normalizedEmail = email.toLowerCase().trim()
+            const normalizedDomain = allowedEmailDomain.toLowerCase().trim()
+
+            if (restrictEmailDomain && !normalizedEmail.endsWith(normalizedDomain)) {
+              console.log(`Sign in denied for email: ${email} - Invalid domain. Expected: ${allowedEmailDomain}`)
               return false
             }
           }
 
-          // Ensure the user document exists in our custom collection
-          const userDoc = await adminDb.collection("users").doc(user.email).get()
-          if (!userDoc.exists) {
-            // Create new user document - filter out undefined values
-            const userData: any = {
-              name: user.name || profile?.name || "Unknown User",
-              email: user.email,
-              role: "user",
-              status: "active",
-              createdAt: new Date(),
-              updatedAt: new Date(),
-            }
+          // Handle user document creation/update
+          try {
+            const userDoc = await adminDb.collection("users").doc(email).get()
             
-            // Only add image if it's not undefined
-            if (user.image) {
-              userData.image = user.image
-            } else if ((profile as any)?.picture) {
-              userData.image = (profile as any).picture
+            if (!userDoc.exists) {
+              // Create new user document
+              const userData: any = {
+                name: user.name || profile?.name || (profile as any)?.given_name || "Unknown User",
+                email: email,
+                role: "user",
+                status: "active",
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              }
+              
+              // Add image if available
+              const imageUrl = user.image || (profile as any)?.picture || (profile as any)?.avatar_url
+              if (imageUrl) {
+                userData.image = imageUrl
+              }
+              
+              await adminDb.collection("users").doc(email).set(userData)
+              console.log("Created new user document for:", email)
+            } else {
+              // Check if existing user is active
+              const userData = userDoc.data()
+              if (userData?.status === "inactive") {
+                console.log(`Sign in denied for email: ${email} - User is inactive`)
+                return false
+              }
+              
+              // Update last login and any missing fields
+              const updateData: any = {
+                lastLoginAt: new Date(),
+                updatedAt: new Date(),
+              }
+
+              // Update name if it's missing or different
+              const currentName = user.name || profile?.name || (profile as any)?.given_name
+              if (currentName && currentName !== userData?.name) {
+                updateData.name = currentName
+              }
+
+              // Update image if it's missing or different
+              const currentImage = user.image || (profile as any)?.picture || (profile as any)?.avatar_url
+              if (currentImage && currentImage !== userData?.image) {
+                updateData.image = currentImage
+              }
+              
+              await adminDb.collection("users").doc(email).update(updateData)
+              console.log("Updated existing user document for:", email)
             }
-            
-            await adminDb.collection("users").doc(user.email).set(userData)
-          } else {
-            // Check if user is active before allowing sign in
-            const userData = userDoc.data()
-            if (userData?.status === "inactive") {
-              console.log(`Sign in denied for email: ${user.email} - User is inactive`)
-              return false
-            }
-            
-            // Update last login
-            await adminDb.collection("users").doc(user.email).update({
-              lastLoginAt: new Date(),
-              updatedAt: new Date(),
-            })
+          } catch (firestoreError) {
+            console.error("Error handling user document:", firestoreError)
+            // Don't block sign in if Firestore operations fail
           }
           
+          console.log("Sign in successful for:", email)
           return true
+          
         } catch (error) {
-          console.error("Error handling sign in:", error)
+          console.error("Error in signIn callback:", error)
           return false
         }      
       }
+      
+      console.log("Sign in allowed for non-Google provider")
       return true
     },
   },
